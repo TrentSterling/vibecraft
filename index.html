@@ -186,33 +186,198 @@
             background: rgba(0, 0, 0, 0.75); padding: 8px 12px;
             border-radius: 6px; z-index: 100;
         }
+
+        /* Lobby UI */
+        #lobby {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(180deg, #1a0a2e 0%, #0d1b2a 50%, #1b2838 100%);
+            z-index: 500; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        #lobby.hidden { display: none; }
+        #lobby h1 {
+            font-size: 64px; color: #55ff55; margin-bottom: 10px;
+            text-shadow: 3px 3px 6px #000, 0 0 20px rgba(85,255,85,0.3);
+            font-family: 'Segoe UI', Arial, sans-serif; letter-spacing: 4px;
+        }
+        #lobby .subtitle { color: #888; font-size: 14px; margin-bottom: 40px; }
+        .lobby-btn {
+            background: linear-gradient(180deg, #4a7a4a 0%, #2a5a2a 100%);
+            border: 3px solid #1a3a1a; color: white; padding: 16px 60px;
+            font-size: 20px; margin: 8px; cursor: pointer; border-radius: 6px;
+            min-width: 280px; text-shadow: 1px 1px 2px #000;
+            transition: all 0.2s ease; font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        .lobby-btn:hover { background: linear-gradient(180deg, #5a9a5a 0%, #3a7a3a 100%); transform: scale(1.02); }
+        .lobby-btn.secondary {
+            background: linear-gradient(180deg, #5a5a5a 0%, #3a3a3a 100%);
+            border-color: #222;
+        }
+        .lobby-btn.secondary:hover { background: linear-gradient(180deg, #6a6a6a 0%, #4a4a4a 100%); }
+        #join-input {
+            background: rgba(0,0,0,0.6); border: 2px solid #555; color: white;
+            padding: 14px 20px; font-size: 20px; border-radius: 6px;
+            text-align: center; width: 280px; margin: 8px;
+            font-family: 'Consolas', monospace; letter-spacing: 4px;
+        }
+        #join-input::placeholder { color: #666; letter-spacing: 2px; }
+        #join-input:focus { outline: none; border-color: #55ff55; }
+        #lobby-status {
+            color: #aaa; font-size: 14px; margin-top: 15px;
+            min-height: 20px; text-align: center;
+        }
+        #room-info {
+            color: #55ff55; font-size: 18px; margin-top: 15px;
+            font-family: 'Consolas', monospace; display: none;
+            text-align: center;
+        }
+        #room-info .room-code {
+            font-size: 48px; letter-spacing: 8px; display: block;
+            margin: 12px 0; color: #ffff55; cursor: pointer;
+            background: rgba(0,0,0,0.4); padding: 12px 24px;
+            border-radius: 8px; border: 2px dashed rgba(255,255,85,0.4);
+            transition: all 0.2s ease; user-select: all;
+        }
+        #room-info .room-code:hover {
+            background: rgba(255,255,85,0.1);
+            border-color: rgba(255,255,85,0.8);
+        }
+        #room-info .copy-hint {
+            color: #888; font-size: 12px; margin-bottom: 8px;
+        }
+        #room-info .copied-msg {
+            color: #55ff55; font-size: 14px; opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #room-info .copied-msg.show { opacity: 1; }
+        .lobby-btns { display: contents; }
+        .lobby-btns.hidden { display: none; }
+
+        /* In-game room code badge */
+        #room-badge {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            color: #ffff55; font-family: 'Consolas', monospace; font-size: 14px;
+            background: rgba(0,0,0,0.75); padding: 6px 14px;
+            border-radius: 6px; z-index: 100; display: none;
+            cursor: pointer; border: 1px solid rgba(255,255,85,0.3);
+            transition: all 0.2s;
+        }
+        #room-badge:hover { background: rgba(255,255,85,0.15); border-color: rgba(255,255,85,0.7); }
+
+        /* Host migration overlay */
+        #migration-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85); z-index: 450;
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        #migration-overlay.show { display: flex; }
+        #migration-overlay h2 { color: #ffaa00; font-size: 32px; margin-bottom: 10px; }
+        #migration-overlay p { color: #aaa; font-size: 16px; }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #333;
+            border-top: 4px solid #ffaa00; border-radius: 50%;
+            animation: spin 1s linear infinite; margin: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Chat */
+        #chat-box {
+            position: fixed; bottom: 100px; left: 10px;
+            width: 350px; z-index: 200; pointer-events: none;
+        }
+        #chat-messages {
+            max-height: 200px; overflow-y: auto; padding: 5px;
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .chat-msg {
+            color: white; font-family: 'Consolas', monospace; font-size: 13px;
+            text-shadow: 1px 1px 2px #000; padding: 2px 4px;
+            background: rgba(0,0,0,0.4); border-radius: 3px;
+            opacity: 1; transition: opacity 0.5s;
+        }
+        .chat-msg.faded { opacity: 0; }
+        #chat-input-wrap {
+            display: none; pointer-events: auto; margin-top: 4px;
+        }
+        #chat-input-wrap.show { display: block; }
+        #chat-input {
+            width: 100%; background: rgba(0,0,0,0.7); border: 1px solid #555;
+            color: white; padding: 6px 10px; font-size: 13px;
+            font-family: 'Consolas', monospace; border-radius: 3px;
+        }
+        #chat-input:focus { outline: none; border-color: #55ff55; }
+
+        /* Player count HUD */
+        #player-count {
+            position: fixed; top: 40px; right: 10px; color: white;
+            font-family: 'Consolas', monospace; font-size: 13px;
+            background: rgba(0,0,0,0.75); padding: 6px 10px;
+            border-radius: 6px; z-index: 100; display: none;
+        }
     </style>
 </head>
 <body>
     <div id="game-container"></div>
-    <div id="crosshair" class="default"></div>
+    <div id="crosshair" class="default" style="display:none;"></div>
     <div id="muzzle-flash"></div>
     <div id="damage-overlay"></div>
     <div id="water-overlay"></div>
     <div id="air-meter"></div>
     <div class="vignette"></div>
-    <div id="hotbar"></div>
-    <div id="debug"></div>
+    <div id="hotbar" style="display:none;"></div>
+    <div id="debug" style="display:none;"></div>
     <div id="weapon-info"></div>
-    <div id="click-to-start">Click to Play<br><small>WASD to move | Mouse to look | Scroll to switch weapons</small></div>
+    <div id="lobby">
+        <h1>CRAFTMINE</h1>
+        <div class="subtitle">A Voxel Adventure</div>
+        <div class="lobby-btns" id="lobby-btns">
+            <button class="lobby-btn" id="btn-singleplayer">Singleplayer</button>
+            <button class="lobby-btn secondary" id="btn-host">Host Game</button>
+            <input type="text" id="join-input" placeholder="Room Code" maxlength="8" autocomplete="off">
+            <button class="lobby-btn secondary" id="btn-join">Join Game</button>
+        </div>
+        <div id="lobby-status"></div>
+        <div id="room-info">
+            Share this code with friends:<br>
+            <span class="room-code" id="room-code-display"></span>
+            <div class="copy-hint">Click the code to copy</div>
+            <div class="copied-msg" id="copied-msg">Copied!</div>
+            <span id="room-player-count">1 player connected</span>
+            <br>
+            <button class="lobby-btn" id="btn-start-host" style="margin-top:16px;">Start Game</button>
+            <button class="lobby-btn secondary" id="btn-cancel-host" style="margin-top:4px;padding:10px 40px;font-size:16px;">Cancel</button>
+        </div>
+    </div>
+    <div id="room-badge"></div>
+    <div id="migration-overlay">
+        <h2>Host Migrating...</h2>
+        <div class="spinner"></div>
+        <p>Transferring world to new host</p>
+    </div>
+    <div id="chat-box">
+        <div id="chat-messages"></div>
+        <div id="chat-input-wrap">
+            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="200">
+        </div>
+    </div>
+    <div id="player-count"></div>
+    <div id="click-to-start" style="display:none;">Click to Play<br><small>WASD to move | Mouse to look | Scroll to switch weapons</small></div>
     <div id="pause-menu">
         <h1>PAUSED</h1>
         <button class="menu-btn" id="resume-btn">Resume Game</button>
         <button class="menu-btn" id="creative-btn">Toggle Creative Mode</button>
         <button class="menu-btn" id="weather-btn">Toggle Weather</button>
         <button class="menu-btn" id="time-btn">Toggle Time Cycle</button>
+        <button class="menu-btn" id="disconnect-btn" style="display:none;color:#ff5555;">Disconnect</button>
     </div>
-    <div id="health-bar"></div>
-    <div id="game-mode">Survival</div>
-    <div id="game-version">v0.7.1</div>
-    <div id="time-display">Day 1 - 12:00</div>
+    <div id="health-bar" style="display:none;"></div>
+    <div id="game-mode" style="display:none;">Survival</div>
+    <div id="game-version">v0.8.0-mp</div>
+    <div id="time-display" style="display:none;">Day 1 - 12:00</div>
     <div class="rain"></div>
 
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
     </script>
@@ -3446,6 +3611,7 @@
         // ============================================
         class World {
             constructor(seed = 12345) {
+                this.seed = seed;
                 this.chunks = new Map(); this.noise = new SimplexNoise(seed);
                 this.noise2 = new SimplexNoise(seed * 2); this.modifiedBlocks = new Map();
                 this.caveNoise = new SimplexNoise(seed * 3);
@@ -3773,6 +3939,36 @@
 
             setEntityManager(entityManager) {
                 this.entityManager = entityManager;
+            }
+
+            renderWeaponVisual(weaponKey, origin, dir) {
+                // Visual-only effects for remote player weapons
+                switch(weaponKey) {
+                    case 'LASER_GUN': this.shootLaser(origin, dir, 100); break;
+                    case 'RAILGUN': this.shootRailgun(origin, dir); break;
+                    case 'MINIGUN': this.shootMinigun(origin, dir, 0.05); break;
+                    case 'SHOTGUN':
+                        for (let i = 0; i < 4; i++) {
+                            const spread = new THREE.Vector3(dir.x + (Math.random()-0.5)*0.15, dir.y + (Math.random()-0.5)*0.15, dir.z + (Math.random()-0.5)*0.15).normalize();
+                            this.shootMinigun(origin.clone(), spread, 0);
+                        }
+                        break;
+                    case 'TNT_GUN': this.shootTNT(origin, dir, 60); break;
+                    case 'ROCKET_LAUNCHER': this.shootRocket(origin, dir, 50); break;
+                    case 'PLASMA_CANNON': this.shootPlasma(origin, dir, 70); break;
+                    case 'FLAMETHROWER': this.shootFlame(origin, dir); break;
+                    case 'LIGHTNING_STAFF': this.shootLightning(origin, dir, 30); break;
+                    case 'BFG': this.shootBFG(origin, dir, 30); break;
+                    case 'NUKE_LAUNCHER': this.shootNuke(origin, dir, 40); break;
+                    case 'FREEZE_RAY': this.shootFreezeRay(origin, dir); break;
+                    case 'BOW': this.shootBow(origin, dir, 50); break;
+                    case 'GRENADE': this.shootGrenade(origin, dir, 30); break;
+                    case 'SWORD': this.shootSword(origin, dir); break;
+                    case 'CHAINSAW': this.shootChainsaw(origin, dir); break;
+                    case 'GRAVITY_GUN': this.shootGravityWave(origin, dir); break;
+                    case 'BLACK_HOLE': this.shootBlackHole(origin, dir, 20); break;
+                    case 'CLUSTER_BOMB': this.shootCluster(origin, dir, 40, 6); break;
+                }
             }
 
             shootTNT(position, direction, speed = 60) {
@@ -4242,6 +4438,10 @@
             explode(x, y, z, radius = 4) {
                 this.lastExplosion = { x, y, z, time: performance.now() };
                 this.audio.play(radius > 5 ? 'explosion_big' : 'explosion', { size: radius / 4 });
+                // Broadcast explosion in multiplayer
+                if (this.game && this.game.networkManager) {
+                    this.game.networkManager.broadcastExplosion(x, y, z, radius);
+                }
 
                 const blocksToDestroy = [];
                 for (let dx = -radius; dx <= radius; dx++) {
@@ -4651,6 +4851,10 @@
                 this.dead = false;
                 this.deathTimer = 0;
                 this.hurtTimer = 0;
+                // Network properties
+                this.networkId = null;
+                this.networkTarget = null;
+                this.networkYaw = null;
 
                 this.createMesh();
             }
@@ -5645,6 +5849,33 @@
             }
 
             update(dt, playerPos, isNight, projectileSystem) {
+                // Client mode: only interpolate entities, don't run AI
+                const isNetClient = this.game && this.game.networkManager && !this.game.networkManager.isHost && this.game.isMultiplayer;
+                if (isNetClient) {
+                    for (let i = this.entities.length - 1; i >= 0; i--) {
+                        const entity = this.entities[i];
+                        // Interpolate toward network target
+                        if (entity.networkTarget) {
+                            entity.position.lerp(entity.networkTarget, dt * 10);
+                            if (entity.networkYaw !== null) entity.mesh.rotation.y = entity.networkYaw;
+                        }
+                        // Handle death animation
+                        if (entity.dead) {
+                            entity.deathTimer -= dt;
+                            if (entity.deathTimer <= 0) {
+                                entity.dispose();
+                                this.entities.splice(i, 1);
+                            } else if (entity.mesh) {
+                                entity.mesh.rotation.z = (0.5 - entity.deathTimer) * Math.PI;
+                                entity.mesh.position.y -= dt * 2;
+                            }
+                        } else if (entity.mesh) {
+                            entity.mesh.position.copy(entity.position);
+                        }
+                    }
+                    return null;
+                }
+
                 this.spawnTimer -= dt;
 
                 // Spawn mobs periodically
@@ -5658,8 +5889,17 @@
                     const entity = this.entities[i];
                     const result = entity.update(dt, playerPos, isNight);
 
-                    // Check for attacks
+                    // Check for attacks on local player
                     if (result && result.attack) {
+                        // In multiplayer, also check attacks against remote players
+                        if (this.game && this.game.networkManager && this.game.networkManager.isHost) {
+                            for (const [peerId, rp] of this.game.networkManager.remotePlayers) {
+                                const dist = entity.position.distanceTo(rp.position);
+                                if (dist < 2.5) {
+                                    this.game.networkManager.broadcastPlayerDamage(peerId, result.damage);
+                                }
+                            }
+                        }
                         return { damage: result.damage };
                     }
 
@@ -5709,6 +5949,11 @@
                             );
                             const smallSlime = new Entity('SLIME', result.position.clone().add(offset), this.scene, this.world);
                             smallSlime.velocity.set((Math.random() - 0.5) * 8, 6, (Math.random() - 0.5) * 8);
+                            // Assign network ID for multiplayer
+                            if (this.game && this.game.networkManager) {
+                                smallSlime.networkId = this.game.networkManager.getNextEntityNetId();
+                                this.game.networkManager.broadcastEntitySpawn(smallSlime);
+                            }
                             this.entities.push(smallSlime);
                         }
                         entity.dispose();
@@ -5721,6 +5966,10 @@
                         // Play death sound based on entity type
                         if (entity.data.hostile) {
                             this.audio.play(entity.data.boss ? 'demon_death' : 'gore');
+                        }
+                        // Broadcast entity death
+                        if (entity.networkId && this.game && this.game.networkManager) {
+                            this.game.networkManager.broadcastEntityDeath(entity.networkId);
                         }
                         entity.dispose();
                         this.entities.splice(i, 1);
@@ -5801,6 +6050,11 @@
                 }
 
                 const entity = new Entity(type, new THREE.Vector3(spawnX, spawnY, spawnZ), this.scene, this.world);
+                // Assign network ID and broadcast spawn
+                if (this.game && this.game.networkManager) {
+                    entity.networkId = this.game.networkManager.getNextEntityNetId();
+                    this.game.networkManager.broadcastEntitySpawn(entity);
+                }
                 this.entities.push(entity);
 
                 // Pack/swarm animals spawn in groups
@@ -5809,6 +6063,10 @@
                     for (let i = 0; i < groupSize; i++) {
                         const packOffset = new THREE.Vector3((Math.random() - 0.5) * 4, MOB_TYPES[type].flying ? Math.random() * 2 : 0, (Math.random() - 0.5) * 4);
                         const packMember = new Entity(type, new THREE.Vector3(spawnX, spawnY, spawnZ).add(packOffset), this.scene, this.world);
+                        if (this.game && this.game.networkManager) {
+                            packMember.networkId = this.game.networkManager.getNextEntityNetId();
+                            this.game.networkManager.broadcastEntitySpawn(packMember);
+                        }
                         this.entities.push(packMember);
                     }
                 }
@@ -5819,7 +6077,12 @@
                     const dist = entity.position.distanceTo(position);
                     if (dist < radius) {
                         const knockback = entity.position.clone().sub(position).normalize();
-                        entity.takeDamage(damage * (1 - dist / radius), knockback);
+                        const dmg = damage * (1 - dist / radius);
+                        if (this.game && this.game.networkManager && this.game.networkManager.connected && entity.networkId) {
+                            this.game.networkManager.sendDamageEntity(entity.networkId, dmg, knockback);
+                        } else {
+                            entity.takeDamage(dmg, knockback);
+                        }
                     }
                 }
             }
@@ -5845,7 +6108,12 @@
 
                 if (closestEntity) {
                     const knockback = direction.clone();
-                    closestEntity.takeDamage(damage, knockback);
+                    // In multiplayer, route damage through network
+                    if (this.game && this.game.networkManager && this.game.networkManager.connected && closestEntity.networkId) {
+                        this.game.networkManager.sendDamageEntity(closestEntity.networkId, damage, knockback);
+                    } else {
+                        closestEntity.takeDamage(damage, knockback);
+                    }
                     this.audio.play('hit');
                     return true;
                 }
@@ -6065,6 +6333,1021 @@
         }
 
         // ============================================
+        // NAME GENERATOR
+        // ============================================
+        const PLAYER_ADJECTIVES = ['Cool','Swift','Bold','Lucky','Dark','Iron','Wild','Epic','Mega','Brave','Crazy','Daring','Fierce','Grand','Noble','Rapid','Sharp','Storm','Turbo','Void'];
+        const PLAYER_NOUNS = ['Miner','Digger','Builder','Crafter','Steve','Alex','Pickaxe','Creeper','Dragon','Slime','Blaze','Knight','Ghost','Wolf','Hawk','Viper','Titan','Golem','Phoenix','Rex'];
+        const SESSION_NAME = PLAYER_ADJECTIVES[Math.floor(Math.random()*PLAYER_ADJECTIVES.length)] + PLAYER_NOUNS[Math.floor(Math.random()*PLAYER_NOUNS.length)] + Math.floor(Math.random()*100);
+
+        // ============================================
+        // REMOTE PLAYER
+        // ============================================
+        class RemotePlayer {
+            constructor(id, name, scene) {
+                this.id = id;
+                this.name = name;
+                this.scene = scene;
+                this.position = new THREE.Vector3(0, 60, 0);
+                this.velocity = new THREE.Vector3();
+                this.yaw = 0;
+                this.pitch = 0;
+                this.health = CONFIG.MAX_HEALTH;
+                this.hotbarIndex = 0;
+                this.sneaking = false;
+                this.flying = false;
+                this.joinOrder = 0;
+                // Interpolation ring buffer
+                this.stateBuffer = [];
+                this.interpDelay = 0.1; // 100ms
+                this.createMesh();
+                this.createNametag();
+            }
+
+            createMesh() {
+                this.mesh = new THREE.Group();
+                const skinColor = 0xc8a882;
+                const shirtColor = [0x4488cc, 0xcc4444, 0x44cc44, 0xcccc44, 0xcc44cc, 0x44cccc][Math.floor(Math.random() * 6)];
+                const pantsColor = 0x3344aa;
+                // Head
+                const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                const headMat = new THREE.MeshLambertMaterial({ color: skinColor });
+                this.head = new THREE.Mesh(headGeo, headMat);
+                this.head.position.y = 1.65;
+                this.mesh.add(this.head);
+                // Body
+                const bodyGeo = new THREE.BoxGeometry(0.5, 0.7, 0.3);
+                const bodyMat = new THREE.MeshLambertMaterial({ color: shirtColor });
+                this.body = new THREE.Mesh(bodyGeo, bodyMat);
+                this.body.position.y = 1.15;
+                this.mesh.add(this.body);
+                // Left arm
+                const armGeo = new THREE.BoxGeometry(0.25, 0.7, 0.25);
+                const armMat = new THREE.MeshLambertMaterial({ color: shirtColor });
+                this.leftArm = new THREE.Mesh(armGeo, armMat);
+                this.leftArm.position.set(-0.375, 1.15, 0);
+                this.mesh.add(this.leftArm);
+                // Right arm
+                this.rightArm = new THREE.Mesh(armGeo, armMat);
+                this.rightArm.position.set(0.375, 1.15, 0);
+                this.mesh.add(this.rightArm);
+                // Left leg
+                const legGeo = new THREE.BoxGeometry(0.25, 0.7, 0.25);
+                const legMat = new THREE.MeshLambertMaterial({ color: pantsColor });
+                this.leftLeg = new THREE.Mesh(legGeo, legMat);
+                this.leftLeg.position.set(-0.125, 0.45, 0);
+                this.mesh.add(this.leftLeg);
+                // Right leg
+                this.rightLeg = new THREE.Mesh(legGeo, legMat);
+                this.rightLeg.position.set(0.125, 0.45, 0);
+                this.mesh.add(this.rightLeg);
+
+                this.scene.add(this.mesh);
+            }
+
+            createNametag() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256; canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(0, 0, 256, 64);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 28px Consolas, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.name, 128, 42);
+                const tex = new THREE.CanvasTexture(canvas);
+                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+                this.nametag = new THREE.Sprite(mat);
+                this.nametag.scale.set(2, 0.5, 1);
+                this.nametag.position.y = 2.1;
+                this.mesh.add(this.nametag);
+            }
+
+            pushState(state) {
+                this.stateBuffer.push({ time: performance.now() / 1000, ...state });
+                if (this.stateBuffer.length > 20) this.stateBuffer.shift();
+            }
+
+            lerpAngle(a, b, t) {
+                let diff = b - a;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                return a + diff * t;
+            }
+
+            interpolate() {
+                if (this.stateBuffer.length < 2) {
+                    if (this.stateBuffer.length === 1) {
+                        const s = this.stateBuffer[0];
+                        this.position.set(s.x, s.y, s.z);
+                        this.yaw = s.yaw;
+                        this.pitch = s.pitch;
+                        this.health = s.health;
+                        this.hotbarIndex = s.hotbarIndex;
+                        this.sneaking = s.sneaking;
+                        this.flying = s.flying;
+                    }
+                    this.updateMesh();
+                    return;
+                }
+                const now = performance.now() / 1000 - this.interpDelay;
+                // Find two states to interpolate between
+                let i = 0;
+                while (i < this.stateBuffer.length - 2 && this.stateBuffer[i + 1].time < now) i++;
+                const a = this.stateBuffer[i], b = this.stateBuffer[i + 1];
+                const range = b.time - a.time;
+                const t = range > 0 ? Math.min(1, Math.max(0, (now - a.time) / range)) : 1;
+                this.position.set(
+                    a.x + (b.x - a.x) * t,
+                    a.y + (b.y - a.y) * t,
+                    a.z + (b.z - a.z) * t
+                );
+                this.yaw = this.lerpAngle(a.yaw, b.yaw, t);
+                this.pitch = a.pitch + (b.pitch - a.pitch) * t;
+                this.health = b.health;
+                this.hotbarIndex = b.hotbarIndex;
+                this.sneaking = b.sneaking;
+                this.flying = b.flying;
+                this.updateMesh();
+            }
+
+            updateMesh() {
+                this.mesh.position.copy(this.position);
+                this.mesh.rotation.y = this.yaw;
+                this.head.rotation.x = this.pitch;
+                // Walk animation
+                const speed = this.velocity.length();
+                const walkCycle = performance.now() / 200;
+                if (speed > 0.5 || this.stateBuffer.length >= 2) {
+                    const swing = Math.sin(walkCycle) * 0.6;
+                    this.leftArm.rotation.x = swing;
+                    this.rightArm.rotation.x = -swing;
+                    this.leftLeg.rotation.x = -swing;
+                    this.rightLeg.rotation.x = swing;
+                } else {
+                    this.leftArm.rotation.x = 0;
+                    this.rightArm.rotation.x = 0;
+                    this.leftLeg.rotation.x = 0;
+                    this.rightLeg.rotation.x = 0;
+                }
+            }
+
+            dispose() {
+                this.scene.remove(this.mesh);
+                this.mesh.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
+        }
+
+        // ============================================
+        // NETWORK MANAGER
+        // ============================================
+        class NetworkManager {
+            constructor(game) {
+                this.game = game;
+                this.peer = null;
+                this.connections = new Map(); // peerId -> DataConnection
+                this.remotePlayers = new Map(); // peerId -> RemotePlayer
+                this.isHost = false;
+                this.hostId = null;
+                this.myId = null;
+                this.myName = SESSION_NAME;
+                this.playerList = []; // ordered by join time: [{id, name, joinOrder}]
+                this.nextEntityNetId = 1;
+                this.lastPlayerBroadcast = 0;
+                this.lastEntityBroadcast = 0;
+                this.lastGameStateBroadcast = 0;
+                this.lastHeartbeat = 0;
+                this.lastHostHeartbeat = 0;
+                this.hostHeartbeatTimeout = 3.0; // seconds before migration
+                this.connected = false;
+                this.entityStateCache = []; // cached for host migration
+                this.chatCallback = null;
+            }
+
+            generateRoomCode() {
+                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                let code = '';
+                for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+                return code;
+            }
+
+            initAsHost(callback) {
+                const roomCode = this.generateRoomCode();
+                this.peer = new Peer('craftmine-' + roomCode);
+                this.isHost = true;
+                this.peer.on('open', (id) => {
+                    this.myId = id;
+                    this.hostId = id;
+                    this.playerList = [{ id: this.myId, name: this.myName, joinOrder: 0 }];
+                    this.connected = true;
+                    callback(roomCode);
+                });
+                this.peer.on('connection', (conn) => this.handleIncomingConnection(conn));
+                this.peer.on('error', (err) => {
+                    console.error('PeerJS host error:', err);
+                    if (err.type === 'unavailable-id') {
+                        // Room code collision, try again
+                        this.peer.destroy();
+                        this.initAsHost(callback);
+                    }
+                });
+            }
+
+            initAsClient(roomCode, callback, errorCallback) {
+                this.peer = new Peer();
+                this.isHost = false;
+                this.peer.on('open', (id) => {
+                    this.myId = id;
+                    const hostPeerId = 'craftmine-' + roomCode.toUpperCase();
+                    const conn = this.peer.connect(hostPeerId, { reliable: true });
+                    conn.on('open', () => {
+                        this.hostId = hostPeerId;
+                        this.connections.set(hostPeerId, conn);
+                        this.connected = true;
+                        this.setupConnection(conn);
+                        // Send join request
+                        this.send(conn, { type: 'JOIN_REQUEST', name: this.myName });
+                    });
+                    conn.on('error', (err) => {
+                        console.error('Connection error:', err);
+                        errorCallback('Failed to connect to host');
+                    });
+                });
+                this.peer.on('connection', (conn) => this.handleIncomingConnection(conn));
+                this.peer.on('error', (err) => {
+                    console.error('PeerJS client error:', err);
+                    errorCallback('Connection failed: ' + err.type);
+                });
+                this.joinCallback = callback;
+            }
+
+            handleIncomingConnection(conn) {
+                conn.on('open', () => {
+                    this.connections.set(conn.peer, conn);
+                    this.setupConnection(conn);
+                });
+            }
+
+            setupConnection(conn) {
+                conn.on('data', (data) => this.handleMessage(conn.peer, data));
+                conn.on('close', () => this.handleDisconnect(conn.peer));
+                conn.on('error', () => this.handleDisconnect(conn.peer));
+            }
+
+            send(conn, msg) {
+                try { if (conn.open) conn.send(msg); }
+                catch(e) { console.warn('Send failed:', e); }
+            }
+
+            broadcast(msg, excludeId) {
+                for (const [peerId, conn] of this.connections) {
+                    if (peerId !== excludeId) this.send(conn, msg);
+                }
+            }
+
+            handleMessage(fromId, msg) {
+                switch (msg.type) {
+                    case 'JOIN_REQUEST':
+                        if (this.isHost) this.handleJoinRequest(fromId, msg);
+                        break;
+                    case 'JOIN_ACCEPT':
+                        this.handleJoinAccept(msg);
+                        break;
+                    case 'PLAYER_JOINED':
+                        this.handlePlayerJoined(msg);
+                        break;
+                    case 'PLAYER_LEFT':
+                        this.handlePlayerLeft(msg);
+                        break;
+                    case 'PLAYER_STATE':
+                        this.handlePlayerState(fromId, msg);
+                        break;
+                    case 'BLOCK_CHANGE':
+                        this.handleBlockChange(fromId, msg);
+                        break;
+                    case 'ENTITY_SPAWN':
+                        this.handleEntitySpawn(msg);
+                        break;
+                    case 'ENTITY_DEATH':
+                        this.handleEntityDeath(msg);
+                        break;
+                    case 'ENTITY_STATE_BATCH':
+                        this.handleEntityStateBatch(msg);
+                        break;
+                    case 'EXPLOSION':
+                        this.handleExplosion(msg);
+                        break;
+                    case 'WEAPON_FIRE':
+                        this.handleWeaponFire(fromId, msg);
+                        break;
+                    case 'DAMAGE_ENTITY':
+                        if (this.isHost) this.handleDamageEntity(msg);
+                        break;
+                    case 'PLAYER_DAMAGE':
+                        this.handlePlayerDamage(msg);
+                        break;
+                    case 'HOST_HEARTBEAT':
+                        this.lastHostHeartbeat = performance.now() / 1000;
+                        break;
+                    case 'HOST_MIGRATION':
+                        this.handleHostMigration(msg);
+                        break;
+                    case 'GAME_STATE_SYNC':
+                        this.handleGameStateSync(msg);
+                        break;
+                    case 'CHAT':
+                        this.handleChat(msg);
+                        break;
+                    case 'CONNECT_TO_PEER':
+                        // Host told us to connect to a new peer
+                        if (!this.connections.has(msg.peerId)) {
+                            const conn = this.peer.connect(msg.peerId, { reliable: true });
+                            conn.on('open', () => {
+                                this.connections.set(msg.peerId, conn);
+                                this.setupConnection(conn);
+                            });
+                        }
+                        break;
+                }
+            }
+
+            handleJoinRequest(fromId, msg) {
+                const joinOrder = this.playerList.length;
+                const newPlayer = { id: fromId, name: msg.name, joinOrder };
+                this.playerList.push(newPlayer);
+
+                // Build modified blocks as serializable data
+                const modBlocks = [];
+                for (const [key, val] of this.game.world.modifiedBlocks) {
+                    modBlocks.push({ key, val });
+                }
+
+                // Build entity data
+                const entities = this.game.entityManager.entities.map(e => ({
+                    networkId: e.networkId, type: e.type,
+                    x: e.position.x, y: e.position.y, z: e.position.z,
+                    health: e.health
+                }));
+
+                // Send full state to new player
+                const conn = this.connections.get(fromId);
+                this.send(conn, {
+                    type: 'JOIN_ACCEPT',
+                    seed: this.game.world.seed,
+                    modifiedBlocks: modBlocks,
+                    playerList: this.playerList,
+                    entities,
+                    gameTime: this.game.gameTime,
+                    dayCount: this.game.dayCount,
+                    isRaining: this.game.isRaining
+                });
+
+                // Tell all existing peers about the new player
+                this.broadcast({ type: 'PLAYER_JOINED', id: fromId, name: msg.name, joinOrder }, fromId);
+
+                // Tell all existing peers to connect to the new peer (full mesh)
+                for (const [peerId] of this.connections) {
+                    if (peerId !== fromId) {
+                        this.send(this.connections.get(peerId), { type: 'CONNECT_TO_PEER', peerId: fromId });
+                        this.send(conn, { type: 'CONNECT_TO_PEER', peerId });
+                    }
+                }
+
+                // Create remote player locally
+                const rp = new RemotePlayer(fromId, msg.name, this.game.scene);
+                rp.joinOrder = joinOrder;
+                this.remotePlayers.set(fromId, rp);
+                this.updatePlayerCountUI();
+                this.game.addChatMessage(`${msg.name} joined the game`, '#55ff55');
+            }
+
+            handleJoinAccept(msg) {
+                // Initialize world with host's seed
+                this.game.initWorldFromNetwork(msg.seed, msg.modifiedBlocks);
+                this.playerList = msg.playerList;
+                this.hostId = this.playerList[0].id; // Host is always first
+
+                // Create remote players for everyone already in game
+                for (const p of msg.playerList) {
+                    if (p.id !== this.myId) {
+                        const rp = new RemotePlayer(p.id, p.name, this.game.scene);
+                        rp.joinOrder = p.joinOrder;
+                        this.remotePlayers.set(p.id, rp);
+                    }
+                }
+
+                // Apply game state
+                this.game.gameTime = msg.gameTime;
+                this.game.dayCount = msg.dayCount;
+                this.game.isRaining = msg.isRaining;
+                if (msg.isRaining) document.querySelector('.rain').classList.add('active');
+
+                // Spawn entities from host
+                for (const e of msg.entities) {
+                    this.spawnNetworkEntity(e);
+                }
+
+                this.lastHostHeartbeat = performance.now() / 1000;
+                this.updatePlayerCountUI();
+                if (this.joinCallback) this.joinCallback();
+            }
+
+            handlePlayerJoined(msg) {
+                if (msg.id === this.myId) return;
+                if (!this.remotePlayers.has(msg.id)) {
+                    const rp = new RemotePlayer(msg.id, msg.name, this.game.scene);
+                    rp.joinOrder = msg.joinOrder;
+                    this.remotePlayers.set(msg.id, rp);
+                    // Update player list
+                    if (!this.playerList.find(p => p.id === msg.id)) {
+                        this.playerList.push({ id: msg.id, name: msg.name, joinOrder: msg.joinOrder });
+                    }
+                    this.updatePlayerCountUI();
+                    this.game.addChatMessage(`${msg.name} joined the game`, '#55ff55');
+                }
+            }
+
+            handlePlayerLeft(msg) {
+                this.removePlayer(msg.id);
+            }
+
+            handlePlayerState(fromId, msg) {
+                const rp = this.remotePlayers.get(fromId);
+                if (rp) rp.pushState(msg);
+            }
+
+            handleBlockChange(fromId, msg) {
+                // Apply block change
+                this.game.world.setBlock(msg.x, msg.y, msg.z, msg.blockType);
+                this.game.meshBuilder.rebuildChunksNear(msg.x, msg.y, msg.z);
+                if (msg.blockType === 0) this.game.audio.play('break');
+                else this.game.audio.play('place');
+                // If host, rebroadcast to others
+                if (this.isHost) {
+                    this.broadcast({ type: 'BLOCK_CHANGE', x: msg.x, y: msg.y, z: msg.z, blockType: msg.blockType }, fromId);
+                }
+            }
+
+            handleEntitySpawn(msg) {
+                if (this.isHost) return; // Host already has these
+                this.spawnNetworkEntity(msg);
+            }
+
+            handleEntityDeath(msg) {
+                if (this.isHost) return;
+                const entity = this.game.entityManager.entities.find(e => e.networkId === msg.entityId);
+                if (entity) {
+                    entity.dead = true;
+                    entity.deathTimer = 0.5;
+                    if (entity.data.hostile) this.game.audio.play(entity.data.boss ? 'demon_death' : 'gore');
+                }
+            }
+
+            handleEntityStateBatch(msg) {
+                if (this.isHost) return;
+                this.entityStateCache = msg.entities; // cache for migration
+                for (const es of msg.entities) {
+                    const entity = this.game.entityManager.entities.find(e => e.networkId === es.id);
+                    if (entity) {
+                        entity.networkTarget = new THREE.Vector3(es.x, es.y, es.z);
+                        entity.networkYaw = es.yaw;
+                        entity.health = es.health;
+                        if (es.dead && !entity.dead) {
+                            entity.dead = true;
+                            entity.deathTimer = 0.5;
+                        }
+                    }
+                }
+            }
+
+            handleExplosion(msg) {
+                if (this.isHost) return;
+                this.game.projectileSystem.explode(msg.x, msg.y, msg.z, msg.radius);
+            }
+
+            handleWeaponFire(fromId, msg) {
+                if (fromId === this.myId) return;
+                // Render visual-only weapon effects
+                const origin = new THREE.Vector3(msg.ox, msg.oy, msg.oz);
+                const dir = new THREE.Vector3(msg.dx, msg.dy, msg.dz);
+                this.game.projectileSystem.renderWeaponVisual(msg.weaponKey, origin, dir);
+            }
+
+            handleDamageEntity(msg) {
+                // Host resolves damage
+                const entity = this.game.entityManager.entities.find(e => e.networkId === msg.entityId);
+                if (entity) {
+                    const kb = msg.knockback ? new THREE.Vector3(msg.knockback.x, msg.knockback.y, msg.knockback.z) : null;
+                    entity.takeDamage(msg.amount, kb);
+                }
+            }
+
+            handlePlayerDamage(msg) {
+                if (msg.targetPlayerId === this.myId) {
+                    this.game.player.takeDamage(msg.amount);
+                    this.game.audio.play('hurt');
+                    document.getElementById('damage-overlay').classList.add('show');
+                    setTimeout(() => document.getElementById('damage-overlay').classList.remove('show'), 200);
+                }
+            }
+
+            handleHostMigration(msg) {
+                this.hostId = msg.newHostId;
+                this.playerList = msg.playerList;
+                if (msg.newHostId === this.myId) {
+                    this.isHost = true;
+                    this.game.addChatMessage('You are now the host!', '#ffaa00');
+                }
+                // Hide migration overlay
+                setTimeout(() => {
+                    document.getElementById('migration-overlay').classList.remove('show');
+                }, 1000);
+                this.lastHostHeartbeat = performance.now() / 1000;
+                this.updatePlayerCountUI();
+            }
+
+            handleGameStateSync(msg) {
+                if (this.isHost) return;
+                this.game.gameTime = msg.gameTime;
+                this.game.dayCount = msg.dayCount;
+                if (msg.isRaining !== this.game.isRaining) {
+                    this.game.isRaining = msg.isRaining;
+                    document.querySelector('.rain').classList.toggle('active', msg.isRaining);
+                }
+            }
+
+            handleChat(msg) {
+                this.game.addChatMessage(`<${msg.from}> ${msg.text}`, '#ffffff');
+            }
+
+            sendChat(text) {
+                const msg = { type: 'CHAT', from: this.myName, text };
+                this.broadcast(msg);
+                this.game.addChatMessage(`<${this.myName}> ${text}`, '#ffffff');
+            }
+
+            spawnNetworkEntity(e) {
+                const pos = new THREE.Vector3(e.x, e.y, e.z);
+                try {
+                    const entity = new Entity(e.type || e.entityType, pos, this.game.scene, this.game.world);
+                    entity.networkId = e.networkId || e.entityId;
+                    entity.health = e.health || entity.maxHealth;
+                    this.game.entityManager.entities.push(entity);
+                } catch(err) {
+                    console.warn('Failed to spawn network entity:', err);
+                }
+            }
+
+            removePlayer(peerId) {
+                const rp = this.remotePlayers.get(peerId);
+                if (rp) {
+                    const name = rp.name;
+                    rp.dispose();
+                    this.remotePlayers.delete(peerId);
+                    this.game.addChatMessage(`${name} left the game`, '#ff5555');
+                }
+                this.connections.delete(peerId);
+                this.playerList = this.playerList.filter(p => p.id !== peerId);
+                this.updatePlayerCountUI();
+                // Broadcast PLAYER_LEFT if host
+                if (this.isHost) {
+                    this.broadcast({ type: 'PLAYER_LEFT', id: peerId });
+                }
+            }
+
+            handleDisconnect(peerId) {
+                this.removePlayer(peerId);
+                // Check if host disconnected
+                if (peerId === this.hostId && !this.isHost) {
+                    this.checkHostMigration();
+                }
+            }
+
+            checkHostMigration() {
+                // Filter out disconnected host
+                this.playerList = this.playerList.filter(p => p.id !== this.hostId);
+                if (this.playerList.length === 0) return;
+
+                // Sort by joinOrder, first in line becomes host
+                this.playerList.sort((a, b) => a.joinOrder - b.joinOrder);
+                const newHostId = this.playerList[0].id;
+
+                document.getElementById('migration-overlay').classList.add('show');
+
+                if (newHostId === this.myId) {
+                    // I'm the new host
+                    this.isHost = true;
+                    this.hostId = this.myId;
+                    this.game.addChatMessage('You are now the host!', '#ffaa00');
+
+                    // Restore entities from cache
+                    if (this.entityStateCache.length > 0) {
+                        for (const es of this.entityStateCache) {
+                            const entity = this.game.entityManager.entities.find(e => e.networkId === es.id);
+                            if (entity) {
+                                entity.position.set(es.x, es.y, es.z);
+                            }
+                        }
+                    }
+
+                    // Broadcast migration to all
+                    this.broadcast({
+                        type: 'HOST_MIGRATION',
+                        newHostId: this.myId,
+                        playerList: this.playerList
+                    });
+
+                    setTimeout(() => {
+                        document.getElementById('migration-overlay').classList.remove('show');
+                    }, 1500);
+                }
+            }
+
+            broadcastBlockChange(x, y, z, blockType) {
+                if (!this.connected) return;
+                const msg = { type: 'BLOCK_CHANGE', x, y, z, blockType };
+                if (this.isHost) {
+                    this.broadcast(msg);
+                } else {
+                    // Send to host, host rebroadcasts
+                    const hostConn = this.connections.get(this.hostId);
+                    if (hostConn) this.send(hostConn, msg);
+                }
+            }
+
+            broadcastWeaponFire(weaponKey, origin, direction) {
+                if (!this.connected) return;
+                this.broadcast({
+                    type: 'WEAPON_FIRE', weaponKey,
+                    ox: origin.x, oy: origin.y, oz: origin.z,
+                    dx: direction.x, dy: direction.y, dz: direction.z
+                });
+            }
+
+            broadcastExplosion(x, y, z, radius) {
+                if (!this.connected || !this.isHost) return;
+                this.broadcast({ type: 'EXPLOSION', x, y, z, radius });
+            }
+
+            broadcastEntitySpawn(entity) {
+                if (!this.connected || !this.isHost) return;
+                this.broadcast({
+                    type: 'ENTITY_SPAWN', entityId: entity.networkId, entityType: entity.type,
+                    x: entity.position.x, y: entity.position.y, z: entity.position.z
+                });
+            }
+
+            broadcastEntityDeath(entityId) {
+                if (!this.connected || !this.isHost) return;
+                this.broadcast({ type: 'ENTITY_DEATH', entityId });
+            }
+
+            sendDamageEntity(entityId, amount, knockback) {
+                if (!this.connected) return;
+                if (this.isHost) {
+                    // Resolve locally
+                    const entity = this.game.entityManager.entities.find(e => e.networkId === entityId);
+                    if (entity) entity.takeDamage(amount, knockback);
+                } else {
+                    const hostConn = this.connections.get(this.hostId);
+                    if (hostConn) {
+                        this.send(hostConn, {
+                            type: 'DAMAGE_ENTITY', entityId, amount,
+                            knockback: knockback ? { x: knockback.x, y: knockback.y, z: knockback.z } : null
+                        });
+                    }
+                }
+            }
+
+            broadcastPlayerDamage(targetPlayerId, amount) {
+                if (!this.connected || !this.isHost) return;
+                const conn = this.connections.get(targetPlayerId);
+                if (conn) this.send(conn, { type: 'PLAYER_DAMAGE', targetPlayerId, amount });
+            }
+
+            update(dt) {
+                if (!this.connected) return;
+                const now = performance.now() / 1000;
+
+                // Broadcast own player state at 20Hz
+                if (now - this.lastPlayerBroadcast > 0.05) {
+                    this.lastPlayerBroadcast = now;
+                    const p = this.game.player;
+                    this.broadcast({
+                        type: 'PLAYER_STATE',
+                        x: p.position.x, y: p.position.y, z: p.position.z,
+                        vx: p.velocity.x, vy: p.velocity.y, vz: p.velocity.z,
+                        yaw: p.yaw, pitch: p.pitch,
+                        health: p.health, hotbarIndex: p.hotbarIndex,
+                        sneaking: p.sneaking, flying: p.flying
+                    });
+                }
+
+                // Host broadcasts entity states at 10Hz
+                if (this.isHost && now - this.lastEntityBroadcast > 0.1) {
+                    this.lastEntityBroadcast = now;
+                    const entities = this.game.entityManager.entities
+                        .filter(e => e.networkId)
+                        .map(e => ({
+                            id: e.networkId, x: e.position.x, y: e.position.y, z: e.position.z,
+                            vx: e.velocity.x, vy: e.velocity.y, vz: e.velocity.z,
+                            health: e.health, yaw: e.mesh ? e.mesh.rotation.y : 0, dead: e.dead
+                        }));
+                    if (entities.length > 0) {
+                        this.broadcast({ type: 'ENTITY_STATE_BATCH', entities });
+                    }
+                }
+
+                // Host broadcasts game state at 2Hz
+                if (this.isHost && now - this.lastGameStateBroadcast > 0.5) {
+                    this.lastGameStateBroadcast = now;
+                    this.broadcast({
+                        type: 'GAME_STATE_SYNC',
+                        gameTime: this.game.gameTime, dayCount: this.game.dayCount,
+                        isRaining: this.game.isRaining
+                    });
+                }
+
+                // Host heartbeat at 1Hz
+                if (this.isHost && now - this.lastHeartbeat > 1.0) {
+                    this.lastHeartbeat = now;
+                    this.broadcast({ type: 'HOST_HEARTBEAT', timestamp: now });
+                }
+
+                // Client: check for host timeout
+                if (!this.isHost && this.lastHostHeartbeat > 0) {
+                    if (now - this.lastHostHeartbeat > this.hostHeartbeatTimeout) {
+                        this.lastHostHeartbeat = now; // prevent repeated triggers
+                        this.checkHostMigration();
+                    }
+                }
+
+                // Interpolate remote players
+                for (const [, rp] of this.remotePlayers) {
+                    rp.interpolate();
+                }
+            }
+
+            getNextEntityNetId() {
+                return this.nextEntityNetId++;
+            }
+
+            updatePlayerCountUI() {
+                const count = this.remotePlayers.size + 1;
+                const el = document.getElementById('player-count');
+                el.textContent = `Players: ${count}`;
+                el.style.display = count > 1 ? 'block' : (this.connected ? 'block' : 'none');
+                // Update lobby player count if visible
+                const roomCount = document.getElementById('room-player-count');
+                if (roomCount) roomCount.textContent = `${count} player${count > 1 ? 's' : ''}`;
+            }
+
+            disconnect() {
+                this.broadcast({ type: 'PLAYER_LEFT', id: this.myId });
+                for (const [, rp] of this.remotePlayers) rp.dispose();
+                this.remotePlayers.clear();
+                this.connections.clear();
+                if (this.peer) this.peer.destroy();
+                this.connected = false;
+                document.getElementById('player-count').style.display = 'none';
+            }
+        }
+
+        // ============================================
+        // NPC MANAGER - Fake players that wander/follow
+        // ============================================
+        const NPC_NAMES = [
+            'Alex', 'Steve', 'Notch', 'Jeb', 'Herobrine', 'Dinnerbone',
+            'xXSlayerXx', 'ProMiner99', 'BlockKing', 'DiamondDave',
+            'TNTSteve', 'CreeperHug', 'GhostFace', 'PixelNinja',
+            'SkyWalker', 'IronGolem', 'RedstoneWiz', 'EndermanFan'
+        ];
+
+        class NPCPlayer {
+            constructor(name, scene, world) {
+                this.scene = scene;
+                this.world = world;
+                this.remote = new RemotePlayer('npc-' + Math.random().toString(36).slice(2), name, scene);
+                this.position = this.remote.position;
+                this.velocity = new THREE.Vector3();
+                this.yaw = Math.random() * Math.PI * 2;
+                this.onGround = false;
+                this.wanderTimer = 0;
+                this.wanderDir = new THREE.Vector3();
+                this.followTarget = null;
+                this.followDist = 0;
+                this.state = 'wander'; // 'wander' | 'follow' | 'idle'
+                this.idleTimer = 0;
+                this.jumpCooldown = 0;
+                this.stateTimer = 5 + Math.random() * 10;
+            }
+
+            spawn(playerPos) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 15 + Math.random() * 25;
+                const sx = playerPos.x + Math.cos(angle) * dist;
+                const sz = playerPos.z + Math.sin(angle) * dist;
+                let sy = -1;
+                for (let y = CONFIG.WORLD_HEIGHT - 1; y >= 0; y--) {
+                    if (this.world.isSolid(sx, y, sz)) { sy = y + 1; break; }
+                }
+                if (sy < 0) sy = 60;
+                this.position.set(sx, sy, sz);
+            }
+
+            update(dt, playerPos) {
+                this.stateTimer -= dt;
+                this.jumpCooldown -= dt;
+
+                // Decide state
+                const distToPlayer = this.position.distanceTo(playerPos);
+                if (this.stateTimer <= 0) {
+                    this.stateTimer = 4 + Math.random() * 8;
+                    const roll = Math.random();
+                    if (distToPlayer < 30 && roll < 0.4) {
+                        this.state = 'follow';
+                        this.followDist = 3 + Math.random() * 4;
+                    } else if (roll < 0.7) {
+                        this.state = 'wander';
+                        const a = Math.random() * Math.PI * 2;
+                        this.wanderDir.set(Math.cos(a), 0, Math.sin(a));
+                    } else {
+                        this.state = 'idle';
+                        this.idleTimer = 2 + Math.random() * 3;
+                    }
+                }
+
+                // Despawn if too far
+                if (distToPlayer > 80) return 'despawn';
+
+                const moveSpeed = 4.5;
+                let moveX = 0, moveZ = 0;
+
+                if (this.state === 'follow') {
+                    const dx = playerPos.x - this.position.x;
+                    const dz = playerPos.z - this.position.z;
+                    const dist = Math.sqrt(dx * dx + dz * dz);
+                    if (dist > this.followDist) {
+                        moveX = (dx / dist) * moveSpeed;
+                        moveZ = (dz / dist) * moveSpeed;
+                        this.yaw = Math.atan2(-dx, -dz);
+                    }
+                } else if (this.state === 'wander') {
+                    moveX = this.wanderDir.x * moveSpeed * 0.5;
+                    moveZ = this.wanderDir.z * moveSpeed * 0.5;
+                    this.yaw = Math.atan2(-this.wanderDir.x, -this.wanderDir.z);
+                }
+                // idle: no movement
+
+                // Gravity
+                this.velocity.x = moveX;
+                this.velocity.z = moveZ;
+                this.velocity.y -= CONFIG.GRAVITY * dt;
+                this.velocity.y = Math.max(this.velocity.y, -30);
+
+                // Move with simple collision
+                const nx = this.position.x + this.velocity.x * dt;
+                const nz = this.position.z + this.velocity.z * dt;
+                const ny = this.position.y + this.velocity.y * dt;
+
+                // X
+                if (!this.isSolidAt(nx, this.position.y, this.position.z)) {
+                    this.position.x = nx;
+                } else {
+                    // Try step up
+                    if (this.onGround && !this.isSolidAt(nx, this.position.y + 1, this.position.z)) {
+                        this.position.x = nx;
+                        this.position.y += 1;
+                    } else {
+                        this.velocity.x = 0;
+                        // Change direction on wall hit
+                        if (this.state === 'wander') {
+                            const a = Math.random() * Math.PI * 2;
+                            this.wanderDir.set(Math.cos(a), 0, Math.sin(a));
+                        }
+                    }
+                }
+                // Z
+                if (!this.isSolidAt(this.position.x, this.position.y, nz)) {
+                    this.position.z = nz;
+                } else {
+                    if (this.onGround && !this.isSolidAt(this.position.x, this.position.y + 1, nz)) {
+                        this.position.z = nz;
+                        this.position.y += 1;
+                    } else {
+                        this.velocity.z = 0;
+                        if (this.state === 'wander') {
+                            const a = Math.random() * Math.PI * 2;
+                            this.wanderDir.set(Math.cos(a), 0, Math.sin(a));
+                        }
+                    }
+                }
+                // Y
+                if (!this.isSolidAt(this.position.x, ny, this.position.z)) {
+                    this.position.y = ny;
+                    this.onGround = false;
+                } else {
+                    if (this.velocity.y < 0) this.onGround = true;
+                    this.velocity.y = 0;
+                }
+
+                // Jump over obstacles / randomly
+                if (this.onGround && this.jumpCooldown <= 0) {
+                    const ahead = new THREE.Vector3(this.position.x + Math.sin(this.yaw) * 0.8, this.position.y, this.position.z + Math.cos(this.yaw) * 0.8);
+                    if (this.world.isSolid(ahead.x, ahead.y + 0.5, ahead.z) || Math.random() < 0.005) {
+                        this.velocity.y = CONFIG.JUMP_FORCE;
+                        this.onGround = false;
+                        this.jumpCooldown = 0.5;
+                    }
+                }
+
+                // Fall respawn
+                if (this.position.y < -10) return 'despawn';
+
+                // Update visual
+                this.remote.mesh.position.copy(this.position);
+                this.remote.mesh.rotation.y = this.yaw;
+                // Walk animation
+                const isMoving = Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1;
+                const walkCycle = performance.now() / 200;
+                const swing = isMoving ? Math.sin(walkCycle) * 0.6 : 0;
+                this.remote.leftArm.rotation.x = swing;
+                this.remote.rightArm.rotation.x = -swing;
+                this.remote.leftLeg.rotation.x = -swing;
+                this.remote.rightLeg.rotation.x = swing;
+
+                return null;
+            }
+
+            isSolidAt(x, y, z) {
+                const hw = 0.3;
+                const points = [
+                    [x - hw, y, z - hw], [x + hw, y, z - hw],
+                    [x - hw, y, z + hw], [x + hw, y, z + hw],
+                    [x - hw, y + 1.6, z - hw], [x + hw, y + 1.6, z - hw],
+                    [x - hw, y + 1.6, z + hw], [x + hw, y + 1.6, z + hw],
+                ];
+                for (const [px, py, pz] of points) {
+                    if (this.world.isSolid(px, py, pz)) return true;
+                }
+                return false;
+            }
+
+            dispose() {
+                this.remote.dispose();
+            }
+        }
+
+        class NPCManager {
+            constructor(scene, world) {
+                this.scene = scene;
+                this.world = world;
+                this.npcs = [];
+                this.spawnTimer = 3;
+                this.maxNPCs = 4;
+                this.usedNames = new Set();
+            }
+
+            pickName() {
+                const available = NPC_NAMES.filter(n => !this.usedNames.has(n));
+                if (available.length === 0) return 'Player' + Math.floor(Math.random() * 999);
+                const name = available[Math.floor(Math.random() * available.length)];
+                this.usedNames.add(name);
+                return name;
+            }
+
+            update(dt, playerPos) {
+                this.spawnTimer -= dt;
+                if (this.spawnTimer <= 0 && this.npcs.length < this.maxNPCs) {
+                    this.spawnTimer = 8 + Math.random() * 15;
+                    const npc = new NPCPlayer(this.pickName(), this.scene, this.world);
+                    npc.spawn(playerPos);
+                    this.npcs.push(npc);
+                }
+
+                for (let i = this.npcs.length - 1; i >= 0; i--) {
+                    const result = this.npcs[i].update(dt, playerPos);
+                    if (result === 'despawn') {
+                        this.usedNames.delete(this.npcs[i].remote.name);
+                        this.npcs[i].dispose();
+                        this.npcs.splice(i, 1);
+                    }
+                }
+            }
+
+            dispose() {
+                for (const npc of this.npcs) npc.dispose();
+                this.npcs = [];
+                this.usedNames.clear();
+            }
+        }
+
+        // ============================================
         // GAME
         // ============================================
         class Game {
@@ -6072,17 +7355,27 @@
                 this.container = document.getElementById('game-container');
                 this.debug = document.getElementById('debug');
                 this.audio = new AudioSystem();
+                this.networkManager = null;
+                this.isMultiplayer = false;
+                this.gameStarted = false;
 
                 this.initRenderer();
                 this.initScene();
                 this.initLighting();
+                this.initLobby();
+            }
 
-                this.world = new World(Date.now());
+            initGame(seed) {
+                this.world = new World(seed);
+                this.world.seed = seed;
                 this.meshBuilder = new MeshBuilder(this.scene, this.world);
                 this.player = new Player(this.camera, this.world);
                 this.projectileSystem = new ProjectileSystem(this.scene, this.world, this.meshBuilder, this.audio);
+                this.projectileSystem.game = this;
                 this.entityManager = new EntityManager(this.scene, this.world, this.audio);
+                this.entityManager.game = this;
                 this.projectileSystem.setEntityManager(this.entityManager);
+                this.npcManager = new NPCManager(this.scene, this.world);
 
                 this.initHotbar();
                 this.initControls();
@@ -6102,7 +7395,7 @@
                 this.weaponInfoTimeout = null;
 
                 // Day/night cycle
-                this.gameTime = 0.25; // Start at sunrise (0-1 represents full day cycle)
+                this.gameTime = 0.25;
                 this.dayCount = 1;
                 this.timeCycleEnabled = true;
                 this.weatherEnabled = false;
@@ -6112,17 +7405,218 @@
                 this.showDebug = true;
                 this.showUI = true;
 
+                // Chat
+                this.chatMessages = [];
+                this.chatOpen = false;
+
                 this.findSpawnPoint();
                 this.camera.position.set(this.player.position.x, this.player.position.y + CONFIG.PLAYER_EYE_HEIGHT, this.player.position.z);
                 this.camera.rotation.order = 'YXZ';
                 this.camera.rotation.y = this.player.yaw;
                 this.camera.rotation.x = this.player.pitch;
                 this.updateChunks();
-                this.animate();
 
-                // Auto-start on click
+                // Hide lobby, show game
+                document.getElementById('lobby').classList.add('hidden');
+                document.getElementById('click-to-start').style.display = 'block';
+                document.getElementById('crosshair').style.display = 'block';
+                document.getElementById('hotbar').style.display = 'flex';
+                document.getElementById('debug').style.display = 'block';
+                document.getElementById('game-mode').style.display = 'block';
+                document.getElementById('time-display').style.display = 'block';
+                document.getElementById('health-bar').style.display = 'flex';
+
                 document.getElementById('click-to-start').addEventListener('click', () => this.startGame());
-                document.addEventListener('click', () => { if (!this.isLocked && !this.isPaused) this.startGame(); });
+                document.addEventListener('click', (e) => {
+                    if (!this.isLocked && !this.isPaused && this.gameStarted && !this.chatOpen && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') this.startGame();
+                });
+
+                this.gameStarted = true;
+                this.animate();
+            }
+
+            initLobby() {
+                const lobbyStatus = document.getElementById('lobby-status');
+                const joinInput = document.getElementById('join-input');
+
+                document.getElementById('btn-singleplayer').addEventListener('click', () => {
+                    this.startSingleplayer();
+                });
+
+                document.getElementById('btn-host').addEventListener('click', () => {
+                    lobbyStatus.textContent = 'Creating room...';
+                    document.getElementById('btn-host').disabled = true;
+                    this.startAsHost();
+                });
+
+                document.getElementById('btn-join').addEventListener('click', () => {
+                    const code = joinInput.value.trim();
+                    if (!code) { lobbyStatus.textContent = 'Enter a room code!'; return; }
+                    lobbyStatus.textContent = 'Connecting...';
+                    document.getElementById('btn-join').disabled = true;
+                    this.startAsClient(code);
+                });
+
+                // Auto-uppercase and allow Enter key to join
+                joinInput.addEventListener('input', () => {
+                    joinInput.value = joinInput.value.toUpperCase();
+                });
+                joinInput.addEventListener('keydown', (e) => {
+                    if (e.code === 'Enter') document.getElementById('btn-join').click();
+                });
+            }
+
+            startSingleplayer() {
+                this.isMultiplayer = false;
+                this.initGame(Date.now());
+            }
+
+            startAsHost() {
+                this.isMultiplayer = true;
+                const seed = Date.now();
+                this.networkManager = new NetworkManager(this);
+                this.networkManager.initAsHost((roomCode) => {
+                    this._hostSeed = seed;
+                    this._hostRoomCode = roomCode;
+
+                    // Hide main buttons, show room info
+                    document.getElementById('lobby-btns').classList.add('hidden');
+                    document.getElementById('lobby-status').textContent = '';
+                    document.getElementById('room-info').style.display = 'block';
+                    document.getElementById('room-code-display').textContent = roomCode;
+
+                    // Click code to copy
+                    const codeEl = document.getElementById('room-code-display');
+                    codeEl.addEventListener('click', () => this.copyRoomCode(roomCode));
+
+                    // Start Game button
+                    document.getElementById('btn-start-host').addEventListener('click', () => {
+                        this.initGame(seed);
+                        // Show persistent room code badge in-game
+                        const badge = document.getElementById('room-badge');
+                        badge.textContent = `Room: ${roomCode}`;
+                        badge.style.display = 'block';
+                        badge.addEventListener('click', () => this.copyRoomCode(roomCode));
+                        document.getElementById('disconnect-btn').style.display = 'block';
+                        document.getElementById('player-count').style.display = 'block';
+                        document.getElementById('player-count').textContent = 'Players: 1';
+                        this.networkManager.updatePlayerCountUI();
+                    });
+
+                    // Cancel button
+                    document.getElementById('btn-cancel-host').addEventListener('click', () => {
+                        this.networkManager.disconnect();
+                        this.networkManager = null;
+                        this.isMultiplayer = false;
+                        document.getElementById('room-info').style.display = 'none';
+                        document.getElementById('lobby-btns').classList.remove('hidden');
+                    });
+                });
+            }
+
+            copyRoomCode(code) {
+                navigator.clipboard.writeText(code).then(() => {
+                    const msg = document.getElementById('copied-msg');
+                    if (msg) { msg.classList.add('show'); setTimeout(() => msg.classList.remove('show'), 1500); }
+                    // Also flash the badge if in-game
+                    const badge = document.getElementById('room-badge');
+                    if (badge && badge.style.display !== 'none') {
+                        badge.textContent = 'Copied!';
+                        setTimeout(() => { badge.textContent = `Room: ${this._hostRoomCode}`; }, 1200);
+                    }
+                }).catch(() => {
+                    // Fallback - select the text
+                    const range = document.createRange();
+                    range.selectNode(document.getElementById('room-code-display'));
+                    window.getSelection().removeAllRanges();
+                    window.getSelection().addRange(range);
+                });
+            }
+
+            startAsClient(roomCode) {
+                this.isMultiplayer = true;
+                this._hostRoomCode = roomCode.toUpperCase();
+                this.networkManager = new NetworkManager(this);
+                this.networkManager.initAsClient(roomCode,
+                    () => {
+                        // Success - world already initialized in handleJoinAccept -> initWorldFromNetwork
+                        document.getElementById('lobby-status').textContent = '';
+                        document.getElementById('disconnect-btn').style.display = 'block';
+                        document.getElementById('player-count').style.display = 'block';
+                        // Show room badge
+                        const badge = document.getElementById('room-badge');
+                        badge.textContent = `Room: ${this._hostRoomCode}`;
+                        badge.style.display = 'block';
+                        badge.addEventListener('click', () => this.copyRoomCode(this._hostRoomCode));
+                    },
+                    (err) => {
+                        document.getElementById('lobby-status').textContent = err;
+                        this.networkManager = null;
+                        this.isMultiplayer = false;
+                    }
+                );
+            }
+
+            initWorldFromNetwork(seed, modifiedBlocks) {
+                this.initGame(seed);
+                // Apply modified blocks from host
+                for (const { key, val } of modifiedBlocks) {
+                    this.world.modifiedBlocks.set(key, val);
+                    const [x, y, z] = key.split(',').map(Number);
+                    const cx = Math.floor(x / CONFIG.CHUNK_SIZE);
+                    const cz = Math.floor(z / CONFIG.CHUNK_SIZE);
+                    const chunkKey = this.world.getChunkKey(cx, cz);
+                    const chunk = this.world.chunks.get(chunkKey);
+                    if (chunk) {
+                        const lx = ((x % CONFIG.CHUNK_SIZE) + CONFIG.CHUNK_SIZE) % CONFIG.CHUNK_SIZE;
+                        const lz = ((z % CONFIG.CHUNK_SIZE) + CONFIG.CHUNK_SIZE) % CONFIG.CHUNK_SIZE;
+                        chunk[this.world.getLocalIndex(lx, y, lz)] = val;
+                    }
+                }
+                this.updateChunks();
+            }
+
+            addChatMessage(text, color = '#ffffff') {
+                const messagesEl = document.getElementById('chat-messages');
+                const msgEl = document.createElement('div');
+                msgEl.className = 'chat-msg';
+                msgEl.style.color = color;
+                msgEl.textContent = text;
+                messagesEl.appendChild(msgEl);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+                // Fade out after 8 seconds
+                setTimeout(() => msgEl.classList.add('faded'), 8000);
+                setTimeout(() => { if (msgEl.parentNode) msgEl.remove(); }, 9000);
+            }
+
+            openChat() {
+                this.chatOpen = true;
+                document.exitPointerLock();
+                const wrap = document.getElementById('chat-input-wrap');
+                wrap.classList.add('show');
+                const input = document.getElementById('chat-input');
+                input.value = '';
+                input.focus();
+                const handler = (e) => {
+                    if (e.code === 'Enter') {
+                        const text = input.value.trim();
+                        if (text && this.networkManager) {
+                            this.networkManager.sendChat(text);
+                        }
+                        this.closeChat();
+                        input.removeEventListener('keydown', handler);
+                    } else if (e.code === 'Escape') {
+                        this.closeChat();
+                        input.removeEventListener('keydown', handler);
+                    }
+                };
+                input.addEventListener('keydown', handler);
+            }
+
+            closeChat() {
+                this.chatOpen = false;
+                document.getElementById('chat-input-wrap').classList.remove('show');
+                this.container.requestPointerLock();
             }
 
             initHealthBar() {
@@ -6163,6 +7657,16 @@
                 });
                 document.getElementById('time-btn').addEventListener('click', () => {
                     this.timeCycleEnabled = !this.timeCycleEnabled;
+                });
+                document.getElementById('disconnect-btn').addEventListener('click', () => {
+                    if (this.networkManager) {
+                        this.networkManager.disconnect();
+                        this.networkManager = null;
+                        this.isMultiplayer = false;
+                    }
+                    this.togglePause();
+                    this.addChatMessage('Disconnected from game', '#ff5555');
+                    document.getElementById('disconnect-btn').style.display = 'none';
                 });
             }
 
@@ -6391,7 +7895,24 @@
             initControls() {
                 document.addEventListener('pointerlockchange', () => {
                     this.isLocked = document.pointerLockElement === this.container;
-                    if (!this.isLocked && !this.isPaused) document.getElementById('click-to-start').style.display = 'block';
+                    if (!this.isLocked && !this.isPaused) {
+                        // In multiplayer, don't show the blocking overlay - just a small hint
+                        if (this.isMultiplayer) {
+                            document.getElementById('click-to-start').style.display = 'none';
+                        } else {
+                            document.getElementById('click-to-start').style.display = 'block';
+                        }
+                    }
+                    // In multiplayer, clear movement keys on unlock to prevent stuck movement
+                    if (!this.isLocked && this.player) {
+                        this.player.keys.forward = false;
+                        this.player.keys.backward = false;
+                        this.player.keys.left = false;
+                        this.player.keys.right = false;
+                        this.player.keys.jump = false;
+                        this.player.keys.sneak = false;
+                        this.isShooting = false;
+                    }
                 });
 
                 document.addEventListener('mousemove', (e) => {
@@ -6428,6 +7949,13 @@
                             document.getElementById('debug').style.display = this.showDebug ? 'block' : 'none';
                             document.getElementById('time-display').style.display = this.showDebug ? 'block' : 'none';
                             return;
+                    }
+
+                    // Chat toggle
+                    if (e.code === 'KeyT' && this.isLocked && !this.isPaused && this.isMultiplayer && !this.chatOpen) {
+                        e.preventDefault();
+                        this.openChat();
+                        return;
                     }
 
                     if (!this.isLocked || this.isPaused) return;
@@ -6509,6 +8037,9 @@
                         this.world.setBlock(target.hit.x, target.hit.y, target.hit.z, BLOCKS.AIR);
                         this.meshBuilder.rebuildChunksNear(target.hit.x, target.hit.y, target.hit.z);
                         this.audio.play('break');
+                        if (this.networkManager) {
+                            this.networkManager.broadcastBlockChange(target.hit.x, target.hit.y, target.hit.z, BLOCKS.AIR);
+                        }
                     }
                 }
             }
@@ -6524,6 +8055,9 @@
                 this.world.setBlock(x, y, z, selected);
                 this.meshBuilder.rebuildChunksNear(x, y, z);
                 this.audio.play('place');
+                if (this.networkManager) {
+                    this.networkManager.broadcastBlockChange(x, y, z, selected);
+                }
             }
 
             shootWeapon(weaponKey) {
@@ -6534,6 +8068,11 @@
 
                 const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
                 const origin = this.camera.position.clone().add(dir.clone().multiplyScalar(0.5));
+
+                // Broadcast weapon fire to network
+                if (this.networkManager) {
+                    this.networkManager.broadcastWeaponFire(weaponKey, origin, dir);
+                }
 
                 switch(weaponKey) {
                     case 'TNT_GUN': this.projectileSystem.shootTNT(origin, dir, weapon.projectileSpeed); break;
@@ -6683,19 +8222,36 @@
 
             animate() {
                 requestAnimationFrame(() => this.animate());
-                const dt = this.clock.getDelta();
+                const rawDt = this.clock.getDelta();
+                const dt = Math.min(rawDt, 0.1); // Clamp to 100ms max - prevents tab-switch burst
 
                 this.frameCount++;
                 const now = performance.now();
                 if (now - this.lastFpsTime >= 1000) { this.fps = this.frameCount; this.frameCount = 0; this.lastFpsTime = now; }
+
+                // Update network
+                if (this.networkManager) this.networkManager.update(dt);
 
                 // Update day/night and weather regardless of pause
                 this.updateDayNightCycle(dt);
                 this.updateWeather(dt);
                 this.meshBuilder.updateWater(dt);
 
-                if (this.isLocked && !this.isPaused) {
-                    this.player.update(dt);
+                // In multiplayer: always run simulation. In singleplayer: only when locked & unpaused.
+                const canInput = this.isLocked && !this.isPaused;
+                const simActive = canInput || this.isMultiplayer;
+
+                if (simActive) {
+                    // Player physics always update in multiplayer (gravity etc.), input only when locked
+                    if (canInput) {
+                        this.player.update(dt);
+                    } else if (this.isMultiplayer) {
+                        // Still apply gravity/physics but no input
+                        const savedKeys = { ...this.player.keys };
+                        this.player.keys = { forward: false, backward: false, left: false, right: false, jump: false, sneak: false };
+                        this.player.update(dt);
+                        this.player.keys = savedKeys;
+                    }
                     this.updateHealthBar();
 
                     // Check for damage from being in lava or drowning in water
@@ -6720,14 +8276,13 @@
                     const wasInWater = this.player.inWater || false;
                     if (headBlock === BLOCKS.WATER) {
                         if (!wasInWater) {
-                            this.audio.play('splash'); // Play splash when entering water
+                            this.audio.play('splash');
                             this.player.inWater = true;
                         }
                         waterOverlay.classList.add('show');
                         if (!this.player.creativeMode) {
                             if (this.player.airMeter === undefined) this.player.airMeter = 10;
                             this.player.airMeter -= dt;
-                            // Update air meter UI
                             airMeterEl.classList.add('show');
                             const bubbleCount = Math.ceil(Math.max(0, this.player.airMeter));
                             airMeterEl.innerHTML = '';
@@ -6737,12 +8292,11 @@
                                 airMeterEl.appendChild(bubble);
                             }
                             if (this.player.airMeter <= 0) {
-                                this.player.takeDamage(dt * 2); // Drowning damage
+                                this.player.takeDamage(dt * 2);
                                 document.getElementById('damage-overlay').classList.add('show');
                                 setTimeout(() => document.getElementById('damage-overlay').classList.remove('show'), 200);
                             }
                         }
-                        // Show bubbles rising and play underwater sounds
                         if (Math.random() < dt * 5) {
                             this.projectileSystem.spawnParticle(
                                 this.player.position.x + (Math.random() - 0.5) * 0.5,
@@ -6751,22 +8305,21 @@
                                 0xaaddff
                             );
                         }
-                        // Periodic underwater ambient
                         if (Math.random() < dt * 0.5) {
                             this.audio.play('underwater');
                         }
                     } else {
                         if (wasInWater) {
-                            this.audio.play('splash'); // Play splash when exiting water
+                            this.audio.play('splash');
                             this.player.inWater = false;
                         }
                         waterOverlay.classList.remove('show');
                         airMeterEl.classList.remove('show');
-                        this.player.airMeter = 10; // Reset air when not in water
+                        this.player.airMeter = 10;
                     }
 
                     const selected = this.player.hotbar[this.player.hotbarIndex];
-                    if (this.isShooting && typeof selected === 'string' && WEAPONS[selected]) {
+                    if (canInput && this.isShooting && typeof selected === 'string' && WEAPONS[selected]) {
                         this.shootWeapon(selected);
                     }
 
@@ -6779,6 +8332,9 @@
                         document.getElementById('damage-overlay').classList.add('show');
                         setTimeout(() => document.getElementById('damage-overlay').classList.remove('show'), 200);
                     }
+
+                    // Update NPCs
+                    if (this.npcManager) this.npcManager.update(dt, this.player.position);
 
                     // Update entities
                     const isNight = this.gameTime < 0.25 || this.gameTime > 0.75;
@@ -6799,7 +8355,6 @@
                             const intensity = Math.max(0, 1 - dist / 40) * (1 - timeSince / 0.4);
                             this.screenShake = Math.max(this.screenShake, intensity * 0.4);
 
-                            // Explosion damage to player
                             if (!this.player.creativeMode && dist < 8 && timeSince < 0.05) {
                                 const damage = Math.floor((1 - dist / 8) * 5);
                                 this.player.takeDamage(damage);
@@ -6818,19 +8373,22 @@
                     this.lastChunkUpdate += dt;
                     if (this.lastChunkUpdate > 0.2) { this.updateChunks(); this.lastChunkUpdate = 0; }
 
-                    const target = this.player.getTargetBlock();
-                    if (typeof selected !== 'string' && target) {
-                        this.highlightMesh.visible = true;
-                        this.highlightMesh.position.set(target.hit.x + 0.5, target.hit.y + 0.5, target.hit.z + 0.5);
-                    } else {
-                        this.highlightMesh.visible = false;
+                    if (canInput) {
+                        const target = this.player.getTargetBlock();
+                        if (typeof selected !== 'string' && target) {
+                            this.highlightMesh.visible = true;
+                            this.highlightMesh.position.set(target.hit.x + 0.5, target.hit.y + 0.5, target.hit.z + 0.5);
+                        } else {
+                            this.highlightMesh.visible = false;
+                        }
                     }
 
                     const biome = this.world.getBiome(Math.floor(this.player.position.x), Math.floor(this.player.position.z));
                     const biomeNames = ['Plains', 'Desert', 'Snow', 'Forest', 'Ocean'];
                     const itemName = typeof selected === 'string' ? WEAPONS[selected]?.name : BLOCK_DATA[selected]?.name;
                     const flyingStr = this.player.flying ? ' [Flying]' : '';
-                    this.debug.innerHTML = `FPS: ${this.fps}<br>XYZ: ${this.player.position.x.toFixed(1)} / ${this.player.position.y.toFixed(1)} / ${this.player.position.z.toFixed(1)}<br>Biome: ${biomeNames[biome]}<br>Item: ${itemName || 'Unknown'}${flyingStr}<br>Chunks: ${this.meshBuilder.chunkMeshes.size}<br>Entities: ${this.entityManager.getEntityCount()}<br>Particles: ${this.projectileSystem.particles.length}`;
+                    const netInfo = this.networkManager && this.networkManager.connected ? `<br>Net: ${this.networkManager.isHost ? 'HOST' : 'CLIENT'} | Players: ${this.networkManager.remotePlayers.size + 1}` : '';
+                    this.debug.innerHTML = `FPS: ${this.fps}<br>XYZ: ${this.player.position.x.toFixed(1)} / ${this.player.position.y.toFixed(1)} / ${this.player.position.z.toFixed(1)}<br>Biome: ${biomeNames[biome]}<br>Item: ${itemName || 'Unknown'}${flyingStr}<br>Chunks: ${this.meshBuilder.chunkMeshes.size}<br>Entities: ${this.entityManager.getEntityCount()}<br>Particles: ${this.projectileSystem.particles.length}${netInfo}`;
                 }
 
                 // Frustum culling for performance
