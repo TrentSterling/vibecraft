@@ -6366,7 +6366,12 @@
             createMesh() {
                 this.mesh = new THREE.Group();
                 const skinColor = 0xc8a882;
-                const shirtColor = [0x4488cc, 0xcc4444, 0x44cc44, 0xcccc44, 0xcc44cc, 0x44cccc][Math.floor(Math.random() * 6)];
+                // Deterministic shirt color from name/id so it matches across all clients
+                const nameStr = this.name || this.id || '';
+                let hash = 0;
+                for (let i = 0; i < nameStr.length; i++) hash = ((hash << 5) - hash + nameStr.charCodeAt(i)) | 0;
+                const shirtColors = [0x4488cc, 0xcc4444, 0x44cc44, 0xcccc44, 0xcc44cc, 0x44cccc];
+                const shirtColor = shirtColors[((hash % shirtColors.length) + shirtColors.length) % shirtColors.length];
                 const pantsColor = 0x3344aa;
                 // Head
                 const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
@@ -6663,6 +6668,15 @@
                     case 'CHAT':
                         this.handleChat(msg);
                         break;
+                    case 'NPC_SPAWN':
+                        this.handleNPCSpawn(msg);
+                        break;
+                    case 'NPC_DESPAWN':
+                        this.handleNPCDespawn(msg);
+                        break;
+                    case 'NPC_STATE_BATCH':
+                        this.handleNPCStateBatch(msg);
+                        break;
                     case 'CONNECT_TO_PEER':
                         // Host told us to connect to a new peer
                         if (!this.connections.has(msg.peerId)) {
@@ -6687,11 +6701,24 @@
                     modBlocks.push({ key, val });
                 }
 
+                // Ensure all entities have networkIds before sending
+                for (const e of this.game.entityManager.entities) {
+                    if (!e.networkId) e.networkId = this.getNextEntityNetId();
+                }
+
                 // Build entity data
                 const entities = this.game.entityManager.entities.map(e => ({
                     networkId: e.networkId, type: e.type,
                     x: e.position.x, y: e.position.y, z: e.position.z,
                     health: e.health
+                }));
+
+                // Build NPC data
+                const mgr = this.game.npcManager;
+                const npcs = (mgr ? mgr.npcs : []).map(npc => ({
+                    npcId: npc.remote.id, name: npc.remote.name,
+                    x: npc.position.x, y: npc.position.y, z: npc.position.z,
+                    yaw: npc.yaw
                 }));
 
                 // Send full state to new player
@@ -6701,7 +6728,7 @@
                     seed: this.game.world.seed,
                     modifiedBlocks: modBlocks,
                     playerList: this.playerList,
-                    entities,
+                    entities, npcs,
                     gameTime: this.game.gameTime,
                     dayCount: this.game.dayCount,
                     isRaining: this.game.isRaining
@@ -6750,6 +6777,18 @@
                 // Spawn entities from host
                 for (const e of msg.entities) {
                     this.spawnNetworkEntity(e);
+                }
+
+                // Spawn NPCs from host
+                if (msg.npcs && this.game.npcManager) {
+                    if (!this.game.npcManager.remoteNPCs) this.game.npcManager.remoteNPCs = new Map();
+                    for (const n of msg.npcs) {
+                        const rp = new RemotePlayer(n.npcId, n.name, this.game.scene);
+                        rp.position.set(n.x, n.y, n.z);
+                        rp.mesh.position.copy(rp.position);
+                        rp.mesh.rotation.y = n.yaw || 0;
+                        this.game.npcManager.remoteNPCs.set(n.npcId, rp);
+                    }
                 }
 
                 this.lastHostHeartbeat = performance.now() / 1000;
@@ -6811,8 +6850,19 @@
             handleEntityStateBatch(msg) {
                 if (this.isHost) return;
                 this.entityStateCache = msg.entities; // cache for migration
+                const hostIds = new Set(msg.entities.map(es => es.id));
                 for (const es of msg.entities) {
-                    const entity = this.game.entityManager.entities.find(e => e.networkId === es.id);
+                    let entity = this.game.entityManager.entities.find(e => e.networkId === es.id);
+                    // Auto-create missing entities from batch (handles missed spawns)
+                    if (!entity && es.type && !es.dead) {
+                        try {
+                            const pos = new THREE.Vector3(es.x, es.y, es.z);
+                            entity = new Entity(es.type, pos, this.game.scene, this.game.world);
+                            entity.networkId = es.id;
+                            entity.health = es.health;
+                            this.game.entityManager.entities.push(entity);
+                        } catch(err) { continue; }
+                    }
                     if (entity) {
                         entity.networkTarget = new THREE.Vector3(es.x, es.y, es.z);
                         entity.networkYaw = es.yaw;
@@ -6821,6 +6871,14 @@
                             entity.dead = true;
                             entity.deathTimer = 0.5;
                         }
+                    }
+                }
+                // Remove client entities the host no longer reports (despawned out of range)
+                const ents = this.game.entityManager.entities;
+                for (let i = ents.length - 1; i >= 0; i--) {
+                    if (ents[i].networkId && !hostIds.has(ents[i].networkId)) {
+                        ents[i].dispose();
+                        ents.splice(i, 1);
                     }
                 }
             }
@@ -6883,6 +6941,64 @@
 
             handleChat(msg) {
                 this.game.addChatMessage(`<${msg.from}> ${msg.text}`, '#ffffff');
+            }
+
+            // --- NPC sync (host -> clients) ---
+
+            handleNPCSpawn(msg) {
+                if (this.isHost) return;
+                const mgr = this.game.npcManager;
+                if (!mgr) return;
+                // Don't duplicate
+                if (mgr.remoteNPCs && mgr.remoteNPCs.has(msg.npcId)) return;
+                const rp = new RemotePlayer(msg.npcId, msg.name, this.game.scene);
+                rp.position.set(msg.x, msg.y, msg.z);
+                rp.mesh.position.copy(rp.position);
+                if (!mgr.remoteNPCs) mgr.remoteNPCs = new Map();
+                mgr.remoteNPCs.set(msg.npcId, rp);
+            }
+
+            handleNPCDespawn(msg) {
+                if (this.isHost) return;
+                const mgr = this.game.npcManager;
+                if (!mgr || !mgr.remoteNPCs) return;
+                const rp = mgr.remoteNPCs.get(msg.npcId);
+                if (rp) { rp.dispose(); mgr.remoteNPCs.delete(msg.npcId); }
+            }
+
+            handleNPCStateBatch(msg) {
+                if (this.isHost) return;
+                const mgr = this.game.npcManager;
+                if (!mgr) return;
+                if (!mgr.remoteNPCs) mgr.remoteNPCs = new Map();
+                for (const ns of msg.npcs) {
+                    let rp = mgr.remoteNPCs.get(ns.id);
+                    if (!rp) {
+                        // Auto-create if we missed the spawn
+                        rp = new RemotePlayer(ns.id, ns.name, this.game.scene);
+                        mgr.remoteNPCs.set(ns.id, rp);
+                    }
+                    rp.pushState({
+                        x: ns.x, y: ns.y, z: ns.z,
+                        vx: 0, vy: 0, vz: 0,
+                        yaw: ns.yaw, pitch: 0,
+                        health: CONFIG.MAX_HEALTH, hotbarIndex: 0,
+                        sneaking: false, flying: false
+                    });
+                }
+            }
+
+            broadcastNPCSpawn(npc) {
+                if (!this.connected || !this.isHost) return;
+                this.broadcast({
+                    type: 'NPC_SPAWN', npcId: npc.remote.id, name: npc.remote.name,
+                    x: npc.position.x, y: npc.position.y, z: npc.position.z
+                });
+            }
+
+            broadcastNPCDespawn(npcId) {
+                if (!this.connected || !this.isHost) return;
+                this.broadcast({ type: 'NPC_DESPAWN', npcId });
             }
 
             sendChat(text) {
@@ -7054,12 +7170,24 @@
                     const entities = this.game.entityManager.entities
                         .filter(e => e.networkId)
                         .map(e => ({
-                            id: e.networkId, x: e.position.x, y: e.position.y, z: e.position.z,
+                            id: e.networkId, type: e.type,
+                            x: e.position.x, y: e.position.y, z: e.position.z,
                             vx: e.velocity.x, vy: e.velocity.y, vz: e.velocity.z,
                             health: e.health, yaw: e.mesh ? e.mesh.rotation.y : 0, dead: e.dead
                         }));
                     if (entities.length > 0) {
                         this.broadcast({ type: 'ENTITY_STATE_BATCH', entities });
+                    }
+
+                    // Also broadcast NPC states at 10Hz
+                    const mgr = this.game.npcManager;
+                    if (mgr && mgr.npcs.length > 0) {
+                        const npcs = mgr.npcs.map(npc => ({
+                            id: npc.remote.id, name: npc.remote.name,
+                            x: npc.position.x, y: npc.position.y, z: npc.position.z,
+                            yaw: npc.yaw
+                        }));
+                        this.broadcast({ type: 'NPC_STATE_BATCH', npcs });
                     }
                 }
 
@@ -7307,10 +7435,16 @@
             constructor(scene, world) {
                 this.scene = scene;
                 this.world = world;
-                this.npcs = [];
+                this.game = null;
+                this.npcs = []; // Host-side: actual NPCPlayer instances with AI
+                this.remoteNPCs = new Map(); // Client-side: RemotePlayer meshes from network
                 this.spawnTimer = 3;
                 this.maxNPCs = 4;
                 this.usedNames = new Set();
+            }
+
+            get isNetClient() {
+                return this.game && this.game.networkManager && !this.game.networkManager.isHost && this.game.isMultiplayer;
             }
 
             pickName() {
@@ -7322,20 +7456,38 @@
             }
 
             update(dt, playerPos) {
+                // Client: only interpolate remote NPCs from network data
+                if (this.isNetClient) {
+                    for (const [, rp] of this.remoteNPCs) {
+                        rp.interpolate();
+                    }
+                    return;
+                }
+
+                // Host / singleplayer: run AI
                 this.spawnTimer -= dt;
                 if (this.spawnTimer <= 0 && this.npcs.length < this.maxNPCs) {
                     this.spawnTimer = 8 + Math.random() * 15;
                     const npc = new NPCPlayer(this.pickName(), this.scene, this.world);
                     npc.spawn(playerPos);
                     this.npcs.push(npc);
+                    // Broadcast spawn
+                    if (this.game && this.game.networkManager) {
+                        this.game.networkManager.broadcastNPCSpawn(npc);
+                    }
                 }
 
                 for (let i = this.npcs.length - 1; i >= 0; i--) {
                     const result = this.npcs[i].update(dt, playerPos);
                     if (result === 'despawn') {
+                        const npcId = this.npcs[i].remote.id;
                         this.usedNames.delete(this.npcs[i].remote.name);
                         this.npcs[i].dispose();
                         this.npcs.splice(i, 1);
+                        // Broadcast despawn
+                        if (this.game && this.game.networkManager) {
+                            this.game.networkManager.broadcastNPCDespawn(npcId);
+                        }
                     }
                 }
             }
@@ -7343,6 +7495,8 @@
             dispose() {
                 for (const npc of this.npcs) npc.dispose();
                 this.npcs = [];
+                for (const [, rp] of this.remoteNPCs) rp.dispose();
+                this.remoteNPCs.clear();
                 this.usedNames.clear();
             }
         }
@@ -7376,6 +7530,7 @@
                 this.entityManager.game = this;
                 this.projectileSystem.setEntityManager(this.entityManager);
                 this.npcManager = new NPCManager(this.scene, this.world);
+                this.npcManager.game = this;
 
                 this.initHotbar();
                 this.initControls();
