@@ -8589,25 +8589,26 @@
             }
 
             updateFrustumCulling() {
-                // Create frustum from camera
+                // Update camera matrices BEFORE computing frustum (otherwise 1-frame lag)
+                this.camera.updateMatrixWorld();
                 this.frustum = this.frustum || new THREE.Frustum();
                 this.projScreenMatrix = this.projScreenMatrix || new THREE.Matrix4();
                 this.projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
                 this.frustum.setFromProjectionMatrix(this.projScreenMatrix);
 
-                // Cull chunks based on frustum
+                // Cull chunks based on frustum with generous padding
                 const chunkHalfSize = CONFIG.CHUNK_SIZE / 2;
                 const chunkHeight = CONFIG.WORLD_HEIGHT / 2;
+                const padding = 8; // Extra radius to prevent edge popping
 
                 for (const [key, group] of this.meshBuilder.chunkMeshes) {
                     const [cx, cz] = key.split(',').map(Number);
                     const centerX = cx * CONFIG.CHUNK_SIZE + chunkHalfSize;
                     const centerZ = cz * CONFIG.CHUNK_SIZE + chunkHalfSize;
 
-                    // Create bounding sphere for chunk
                     const sphere = new THREE.Sphere(
                         new THREE.Vector3(centerX, chunkHeight, centerZ),
-                        Math.sqrt(chunkHalfSize * chunkHalfSize * 2 + chunkHeight * chunkHeight)
+                        Math.sqrt(chunkHalfSize * chunkHalfSize * 2 + chunkHeight * chunkHeight) + padding
                     );
 
                     group.visible = this.frustum.intersectsSphere(sphere);
