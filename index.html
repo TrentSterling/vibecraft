@@ -3947,9 +3947,10 @@
 
             renderWeaponVisual(weaponKey, origin, dir) {
                 // Visual-only effects for remote player weapons
+                const prevCount = this.projectiles.length;
                 switch(weaponKey) {
-                    case 'LASER_GUN': this.shootLaser(origin, dir, 100); break;
-                    case 'RAILGUN': this.shootRailgun(origin, dir); break;
+                    case 'LASER_GUN': this.shootLaser(origin, dir, 100, true); break;
+                    case 'RAILGUN': this.shootRailgun(origin, dir, true); break;
                     case 'MINIGUN': this.shootMinigun(origin, dir, 0.05); break;
                     case 'SHOTGUN':
                         for (let i = 0; i < 4; i++) {
@@ -3973,6 +3974,11 @@
                     case 'BLACK_HOLE': this.shootBlackHole(origin, dir, 20); break;
                     case 'CLUSTER_BOMB': this.shootCluster(origin, dir, 40, 6); break;
                 }
+                // Mark all newly created projectiles as remote visual-only
+                // They show trails/flight but don't destroy terrain or deal damage on impact
+                for (let i = prevCount; i < this.projectiles.length; i++) {
+                    this.projectiles[i].remoteVisual = true;
+                }
             }
 
             shootTNT(position, direction, speed = 60) {
@@ -3990,7 +3996,7 @@
                 this.audio.play('shoot_tnt');
             }
 
-            shootLaser(origin, direction, range = 100) {
+            shootLaser(origin, direction, range = 100, visualOnly = false) {
                 this.audio.play('shoot_laser');
                 const raycaster = new THREE.Raycaster(origin, direction, 0, range);
                 let hitDist = range;
@@ -4001,12 +4007,14 @@
                     const block = this.world.getBlock(pos.x, pos.y, pos.z);
                     if (block !== BLOCKS.AIR && block !== BLOCKS.WATER) {
                         hitDist = t;
-                        const bx = Math.floor(pos.x), by = Math.floor(pos.y), bz = Math.floor(pos.z);
-                        if (block !== BLOCKS.BEDROCK) {
-                            this.world.setBlock(bx, by, bz, BLOCKS.AIR);
-                            this.meshBuilder.rebuildChunksNear(bx, by, bz);
-                            this.audio.play('hit');
-                            for (let i = 0; i < 5; i++) this.spawnParticle(bx + 0.5, by + 0.5, bz + 0.5, BLOCK_DATA[block]?.colors?.top || 0x888888);
+                        if (!visualOnly) {
+                            const bx = Math.floor(pos.x), by = Math.floor(pos.y), bz = Math.floor(pos.z);
+                            if (block !== BLOCKS.BEDROCK) {
+                                this.world.setBlock(bx, by, bz, BLOCKS.AIR);
+                                this.meshBuilder.rebuildChunksNear(bx, by, bz);
+                                this.audio.play('hit');
+                                for (let i = 0; i < 5; i++) this.spawnParticle(bx + 0.5, by + 0.5, bz + 0.5, BLOCK_DATA[block]?.colors?.top || 0x888888);
+                            }
                         }
                         break;
                     }
@@ -4031,31 +4039,31 @@
                 this.beams.push({ mesh: glow, life: 0.15 });
             }
 
-            shootRailgun(origin, direction) {
+            shootRailgun(origin, direction, visualOnly = false) {
                 this.audio.play('shoot_railgun');
                 const range = 150;
-                let penetration = 10;
-                const hitPositions = [];
 
-                for (let t = 0; t < range && penetration > 0; t += 0.3) {
-                    const pos = origin.clone().add(direction.clone().multiplyScalar(t));
-                    const block = this.world.getBlock(pos.x, pos.y, pos.z);
-                    if (block !== BLOCKS.AIR && block !== BLOCKS.WATER && block !== BLOCKS.BEDROCK) {
-                        const bx = Math.floor(pos.x), by = Math.floor(pos.y), bz = Math.floor(pos.z);
-                        this.world.setBlock(bx, by, bz, BLOCKS.AIR);
-                        hitPositions.push({ x: bx, y: by, z: bz });
-                        penetration--;
+                if (!visualOnly) {
+                    let penetration = 10;
+                    const hitPositions = [];
+                    for (let t = 0; t < range && penetration > 0; t += 0.3) {
+                        const pos = origin.clone().add(direction.clone().multiplyScalar(t));
+                        const block = this.world.getBlock(pos.x, pos.y, pos.z);
+                        if (block !== BLOCKS.AIR && block !== BLOCKS.WATER && block !== BLOCKS.BEDROCK) {
+                            const bx = Math.floor(pos.x), by = Math.floor(pos.y), bz = Math.floor(pos.z);
+                            this.world.setBlock(bx, by, bz, BLOCKS.AIR);
+                            hitPositions.push({ x: bx, y: by, z: bz });
+                            penetration--;
+                        }
                     }
-                }
-
-                // Rebuild chunks
-                const chunksToRebuild = new Set();
-                for (const pos of hitPositions) {
-                    chunksToRebuild.add(`${Math.floor(pos.x / CONFIG.CHUNK_SIZE)},${Math.floor(pos.z / CONFIG.CHUNK_SIZE)}`);
-                }
-                for (const key of chunksToRebuild) {
-                    const [cx, cz] = key.split(',').map(Number);
-                    this.meshBuilder.rebuildChunksNear(cx * CONFIG.CHUNK_SIZE, 0, cz * CONFIG.CHUNK_SIZE);
+                    const chunksToRebuild = new Set();
+                    for (const pos of hitPositions) {
+                        chunksToRebuild.add(`${Math.floor(pos.x / CONFIG.CHUNK_SIZE)},${Math.floor(pos.z / CONFIG.CHUNK_SIZE)}`);
+                    }
+                    for (const key of chunksToRebuild) {
+                        const [cx, cz] = key.split(',').map(Number);
+                        this.meshBuilder.rebuildChunksNear(cx * CONFIG.CHUNK_SIZE, 0, cz * CONFIG.CHUNK_SIZE);
+                    }
                 }
 
                 // Create beam visual
@@ -4070,7 +4078,11 @@
 
                 // Explosion at end
                 const endPos = origin.clone().add(direction.clone().multiplyScalar(range));
-                this.explode(endPos.x, endPos.y, endPos.z, 6);
+                if (visualOnly) {
+                    for (let j = 0; j < 20; j++) this.spawnParticle(endPos.x, endPos.y, endPos.z, 0xff00ff, true);
+                } else {
+                    this.explode(endPos.x, endPos.y, endPos.z, 6);
+                }
             }
 
             shootMinigun(origin, direction, spread = 0.05) {
@@ -4439,11 +4451,11 @@
                 this.projectiles.push({ mesh: group, velocity: direction.clone().multiplyScalar(speed), gravity: 0, life: 4, type: 'blackhole', duration: 3 });
             }
 
-            explode(x, y, z, radius = 4) {
+            explode(x, y, z, radius = 4, fromNetwork = false) {
                 this.lastExplosion = { x, y, z, time: performance.now() };
                 this.audio.play(radius > 5 ? 'explosion_big' : 'explosion', { size: radius / 4 });
-                // Broadcast explosion in multiplayer
-                if (this.game && this.game.networkManager) {
+                // Broadcast explosion in multiplayer (skip if received from network)
+                if (!fromNetwork && this.game && this.game.networkManager) {
                     this.game.networkManager.broadcastExplosion(x, y, z, radius);
                 }
 
@@ -4492,18 +4504,20 @@
                             const bx = Math.floor(x) + dx, by = Math.floor(y) + dy, bz = Math.floor(z) + dz;
                             if (this.world.getBlock(bx, by, bz) === BLOCKS.TNT) {
                                 this.world.setBlock(bx, by, bz, BLOCKS.AIR);
-                                setTimeout(() => this.explode(bx + 0.5, by + 0.5, bz + 0.5, radius), 50 + Math.random() * 150);
+                                setTimeout(() => this.explode(bx + 0.5, by + 0.5, bz + 0.5, radius, fromNetwork), 50 + Math.random() * 150);
                             }
                         }
                     }
                 }
 
-                // Damage entities and players in radius
-                if (this.entityManager) {
-                    this.entityManager.damageEntitiesInRadius(new THREE.Vector3(x, y, z), radius * 1.5, radius * 3);
-                }
-                if (this.game) {
-                    this.game.damagePlayersInRadius(new THREE.Vector3(x, y, z), radius * 1.5, radius * 3);
+                // Damage entities and players in radius (skip for network explosions to prevent double-damage)
+                if (!fromNetwork) {
+                    if (this.entityManager) {
+                        this.entityManager.damageEntitiesInRadius(new THREE.Vector3(x, y, z), radius * 1.5, radius * 3);
+                    }
+                    if (this.game) {
+                        this.game.damagePlayersInRadius(new THREE.Vector3(x, y, z), radius * 1.5, radius * 3);
+                    }
                 }
 
                 // Flash light
@@ -4547,7 +4561,12 @@
                         proj.fuse -= dt;
                         if (proj.fuse <= 0) {
                             const px = proj.mesh.position.x, py = proj.mesh.position.y, pz = proj.mesh.position.z;
-                            this.explode(px, py, pz, 3);
+                            if (proj.remoteVisual) {
+                                for (let j = 0; j < 20; j++) this.spawnParticle(px, py, pz, 0xff6600, true);
+                                this.audio.play('explosion');
+                            } else {
+                                this.explode(px, py, pz, 3);
+                            }
                             this.removeProjectileMesh(proj.mesh);
                             this.projectiles.splice(i, 1);
                             continue;
@@ -4622,8 +4641,8 @@
                         tendril.scale.setScalar(0.3);
                         this.scene.add(tendril);
                         this.particles.push({ mesh: tendril, velocity: new THREE.Vector3((Math.random()-0.5)*10, (Math.random()-0.5)*10, (Math.random()-0.5)*10), life: 0.3, gravity: 0 });
-                        // BFG damages nearby entities while flying
-                        if (this.entityManager) {
+                        // BFG damages nearby entities while flying (skip for remote visual)
+                        if (this.entityManager && !proj.remoteVisual) {
                             this.entityManager.damageEntitiesInRadius(proj.mesh.position, 5, 2);
                         }
                     }
@@ -4640,8 +4659,8 @@
                     // Black hole pulls in entities and blocks
                     if (proj.type === 'blackhole') {
                         proj.mesh.rotation.y += dt * 5;
-                        // Pull nearby entities
-                        if (this.entityManager) {
+                        // Pull nearby entities (skip for remote visual)
+                        if (this.entityManager && !proj.remoteVisual) {
                             for (const entity of this.entityManager.entities) {
                                 const toHole = proj.mesh.position.clone().sub(entity.position);
                                 const dist = toHole.length();
@@ -4675,14 +4694,23 @@
                             const bomblet = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), new THREE.MeshLambertMaterial({ color: 0xff4488 }));
                             bomblet.position.set(px, py, pz);
                             this.scene.add(bomblet);
-                            this.projectiles.push({ mesh: bomblet, velocity: bombletDir.multiplyScalar(15), gravity: -20, life: 0.5 + Math.random() * 0.5, type: 'clusterbomblet' });
+                            this.projectiles.push({ mesh: bomblet, velocity: bombletDir.multiplyScalar(15), gravity: -20, life: 0.5 + Math.random() * 0.5, type: 'clusterbomblet', remoteVisual: proj.remoteVisual });
                         }
                     }
 
                     const px = proj.mesh.position.x, py = proj.mesh.position.y, pz = proj.mesh.position.z;
                     const block = this.world.getBlock(px, py, pz);
                     if (block !== BLOCKS.AIR && block !== BLOCKS.WATER) {
-                        if (proj.type === 'arrow') {
+                        // Remote visual projectiles: show impact particles only, no terrain/damage
+                        if (proj.remoteVisual && proj.type !== 'grenade') {
+                            const impactColors = { arrow: 0x886644, fireball: 0xff6600, rocket: 0xff4400, plasma: 0x00ff88, bfg: 0x00ff00, nuke: 0xffff00, blackhole: 0x4400aa, clusterbomblet: 0xff4488 };
+                            const color = impactColors[proj.type] || 0xff6600;
+                            const count = (proj.type === 'nuke' || proj.type === 'bfg') ? 40 : 15;
+                            for (let j = 0; j < count; j++) this.spawnParticle(px, py, pz, color, true);
+                            this.audio.play(proj.type === 'arrow' ? 'hit' : 'explosion');
+                            this.removeProjectileMesh(proj.mesh);
+                            this.projectiles.splice(i, 1);
+                        } else if (proj.type === 'arrow') {
                             // Arrow hits block and destroys it
                             const bx = Math.floor(px), by = Math.floor(py), bz = Math.floor(pz);
                             if (block !== BLOCKS.BEDROCK) {
@@ -6908,12 +6936,20 @@
             }
 
             handleExplosion(msg) {
-                if (this.isHost) return;
-                this.game.projectileSystem.explode(msg.x, msg.y, msg.z, msg.radius);
+                // If host, relay to other clients
+                if (this.isHost) {
+                    this.broadcast({ type: 'EXPLOSION', x: msg.x, y: msg.y, z: msg.z, radius: msg.radius });
+                }
+                // Run explosion with fromNetwork=true (visuals + terrain, no damage/rebroadcast)
+                this.game.projectileSystem.explode(msg.x, msg.y, msg.z, msg.radius, true);
             }
 
             handleWeaponFire(fromId, msg) {
                 if (fromId === this.myId) return;
+                // If host, relay to other clients so everyone sees the weapon fire
+                if (this.isHost) {
+                    this.broadcast(msg, fromId);
+                }
                 // Render visual-only weapon effects
                 const origin = new THREE.Vector3(msg.ox, msg.oy, msg.oz);
                 const dir = new THREE.Vector3(msg.dx, msg.dy, msg.dz);
@@ -7182,16 +7218,30 @@
 
             broadcastWeaponFire(weaponKey, origin, direction) {
                 if (!this.connected) return;
-                this.broadcast({
+                const msg = {
                     type: 'WEAPON_FIRE', weaponKey,
                     ox: origin.x, oy: origin.y, oz: origin.z,
                     dx: direction.x, dy: direction.y, dz: direction.z
-                });
+                };
+                if (this.isHost) {
+                    this.broadcast(msg);
+                } else {
+                    // Send to host, host relays to other clients
+                    const hostConn = this.connections.get(this.hostId);
+                    if (hostConn) this.send(hostConn, msg);
+                }
             }
 
             broadcastExplosion(x, y, z, radius) {
-                if (!this.connected || !this.isHost) return;
-                this.broadcast({ type: 'EXPLOSION', x, y, z, radius });
+                if (!this.connected) return;
+                const msg = { type: 'EXPLOSION', x, y, z, radius };
+                if (this.isHost) {
+                    this.broadcast(msg);
+                } else {
+                    // Send to host, host relays to other clients
+                    const hostConn = this.connections.get(this.hostId);
+                    if (hostConn) this.send(hostConn, msg);
+                }
             }
 
             broadcastEntitySpawn(entity) {
