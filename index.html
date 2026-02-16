@@ -1568,6 +1568,994 @@
         }
 
         // ============================================
+        // MULBERRY32 SEEDED PRNG
+        // ============================================
+        function mulberry32(seed) {
+            if (typeof seed === 'string') {
+                let h = 0;
+                for (let i = 0; i < seed.length; i++) {
+                    h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+                }
+                seed = h >>> 0;
+            }
+            seed = seed >>> 0;
+            return function() {
+                seed |= 0;
+                seed = (seed + 0x6D2B79F5) | 0;
+                let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+
+        // ============================================
+        // LOFI CONFIG
+        // ============================================
+        const LOFI_CONFIG = {
+            midiToFreq(midi) {
+                return 440 * Math.pow(2, (midi - 69) / 12);
+            },
+
+            scales: {
+                minor:          [0, 2, 3, 5, 7, 8, 10],
+                dorian:         [0, 2, 3, 5, 7, 9, 10],
+                mixolydian:     [0, 2, 4, 5, 7, 9, 10],
+                minorPentatonic:[0, 3, 5, 7, 10],
+            },
+
+            chordTypes: {
+                maj7: [0, 4, 7, 11],
+                min7: [0, 3, 7, 10],
+                dom7: [0, 4, 7, 10],
+                dim7: [0, 3, 6, 9],
+                min9: [0, 3, 7, 10, 14],
+                maj9: [0, 4, 7, 11, 14],
+            },
+
+            progressions: [
+                // ii7 - V7 - Imaj7 - vi7
+                [{ deg: 2, type: 'min7' }, { deg: 5, type: 'dom7' }, { deg: 1, type: 'maj7' }, { deg: 6, type: 'min7' }],
+                // i7 - iv7 - VII7 - IIImaj7
+                [{ deg: 1, type: 'min7' }, { deg: 4, type: 'min7' }, { deg: 7, type: 'dom7' }, { deg: 3, type: 'maj7' }],
+                // Imaj7 - vi7 - ii7 - V7
+                [{ deg: 1, type: 'maj7' }, { deg: 6, type: 'min7' }, { deg: 2, type: 'min7' }, { deg: 5, type: 'dom7' }],
+                // iii7 - vi7 - ii7 - V7
+                [{ deg: 3, type: 'min7' }, { deg: 6, type: 'min7' }, { deg: 2, type: 'min7' }, { deg: 5, type: 'dom7' }],
+                // IVmaj7 - iii7 - ii7 - Imaj7
+                [{ deg: 4, type: 'maj7' }, { deg: 3, type: 'min7' }, { deg: 2, type: 'min7' }, { deg: 1, type: 'maj7' }],
+                // i7 - VII7 - VImaj7 - V7
+                [{ deg: 1, type: 'min7' }, { deg: 7, type: 'dom7' }, { deg: 6, type: 'maj7' }, { deg: 5, type: 'dom7' }],
+            ],
+
+            tempoRange: [65, 82],
+
+            volumes: {
+                rhodes: 0.13,
+                bass: 0.18,
+                kick: 0.30,
+                snare: 0.14,
+                hihat: 0.06,
+                openHat: 0.05,
+                melody: 0.09,
+                pad: 0.06,
+                vinyl: 0.035,
+                master: 0.75,
+            },
+        };
+
+        // ============================================
+        // LOFI MUSIC SYSTEM — v2: C418 meets lofi
+        // ============================================
+        class LofiMusicSystem {
+            constructor(seed) {
+                this.seed = seed;
+                this.rng = mulberry32(seed);
+                this.ctx = null;
+                this.started = false;
+                this.muted = false;
+                this.schedulerInterval = null;
+                this.currentStep = 0;
+                this.nextStepTime = 0;
+                this.songParams = null;
+                this.barCount = 0;
+                this.onStep = null;
+            }
+
+            init(audioCtx) {
+                this.ctx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+
+                // ---- Master output chain ----
+
+                // Master gain (final output)
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.value = LOFI_CONFIG.volumes.master;
+                this.masterGain.connect(this.ctx.destination);
+
+                // Tape saturation — soft-clip waveshaper for warmth
+                this.saturation = this.ctx.createWaveShaper();
+                this.saturation.curve = this._makeSaturationCurve(0.4);
+                this.saturation.oversample = '2x';
+                this.saturation.connect(this.masterGain);
+
+                // Tape wobble — modulated delay for pitch drift
+                this.tapeDelay = this.ctx.createDelay(0.05);
+                this.tapeDelay.delayTime.value = 0.003;
+                this.tapeWobbleLFO = this.ctx.createOscillator();
+                this.tapeWobbleLFO.type = 'sine';
+                this.tapeWobbleLFO.frequency.value = 0.55;
+                this.tapeWobbleDepth = this.ctx.createGain();
+                this.tapeWobbleDepth.gain.value = 0.0015;
+                this.tapeWobbleLFO.connect(this.tapeWobbleDepth);
+                this.tapeWobbleDepth.connect(this.tapeDelay.delayTime);
+                this.tapeWobbleLFO.start();
+                this.tapeDelay.connect(this.saturation);
+
+                // Master low-pass (lofi warmth — rolls off harsh highs)
+                this.masterLPF = this.ctx.createBiquadFilter();
+                this.masterLPF.type = 'lowpass';
+                this.masterLPF.frequency.value = 3200;
+                this.masterLPF.Q.value = 0.5;
+                this.masterLPF.connect(this.tapeDelay);
+
+                // High-shelf cut for extra dullness / vintage feel
+                this.hiShelf = this.ctx.createBiquadFilter();
+                this.hiShelf.type = 'highshelf';
+                this.hiShelf.frequency.value = 4000;
+                this.hiShelf.gain.value = -4;
+                this.hiShelf.connect(this.masterLPF);
+
+                // ---- Reverb (long, dark, spacious — C418 style) ----
+                this._createReverb();
+                this.reverbGain = this.ctx.createGain();
+                this.reverbGain.gain.value = 0.35;
+                this.reverb.connect(this.reverbGain);
+                // Reverb output also goes through tape saturation
+                this.reverbGain.connect(this.saturation);
+
+                // ---- Instrument buses ----
+
+                // Dry bus -> hiShelf -> masterLPF -> tapeDelay -> saturation -> masterGain -> destination
+                this.dryBus = this.ctx.createGain();
+                this.dryBus.gain.value = 1.0;
+                this.dryBus.connect(this.hiShelf);
+
+                // Reverb send (instruments connect here for wet signal)
+                this.reverbSend = this.ctx.createGain();
+                this.reverbSend.gain.value = 0.35;
+                this.reverbSend.connect(this.reverb);
+
+                // Side-chain duck bus — rhodes, bass, melody, pad duck when kick hits
+                this.duckBus = this.ctx.createGain();
+                this.duckBus.gain.value = 1.0;
+                this.duckBus.connect(this.dryBus);
+                this.duckBus.connect(this.reverbSend);
+
+                // Drum bus — not ducked, goes straight to dry
+                this.drumBus = this.ctx.createGain();
+                this.drumBus.gain.value = 1.0;
+                this.drumBus.connect(this.dryBus);
+
+                // Vinyl crackle — separate path, no reverb/saturation
+                this.vinylGain = this.ctx.createGain();
+                this.vinylGain.gain.value = LOFI_CONFIG.volumes.vinyl;
+                this.vinylGain.connect(this.masterGain);
+
+                // Pre-generate noise buffers
+                this._generateNoiseBuffers();
+
+                // Generate song
+                this.songParams = this._generateSongParams();
+            }
+
+            _makeSaturationCurve(amount) {
+                const samples = 256;
+                const curve = new Float32Array(samples);
+                for (let i = 0; i < samples; i++) {
+                    const x = (i * 2) / samples - 1;
+                    // Soft clip with tanh-like curve
+                    curve[i] = (Math.PI + amount) * x / (Math.PI + amount * Math.abs(x));
+                }
+                return curve;
+            }
+
+            _createReverb() {
+                // Longer, darker reverb — more C418 spaciousness
+                const length = this.ctx.sampleRate * 3.5;
+                const impulse = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
+                const reverbRng = mulberry32(this.seed + 999);
+                for (let ch = 0; ch < 2; ch++) {
+                    const data = impulse.getChannelData(ch);
+                    for (let i = 0; i < length; i++) {
+                        const t = i / length;
+                        // Exponential decay with early reflections
+                        let val = (reverbRng() * 2 - 1);
+                        // Early reflections (first 5%)
+                        if (t < 0.05) {
+                            val *= 0.7;
+                        }
+                        // Main body: smooth exponential decay
+                        val *= Math.exp(-3.5 * t);
+                        // Roll off highs over time (darker tail)
+                        if (t > 0.2) {
+                            val *= 0.8;
+                        }
+                        data[i] = val;
+                    }
+                }
+                this.reverb = this.ctx.createConvolver();
+                this.reverb.buffer = impulse;
+            }
+
+            _generateNoiseBuffers() {
+                const noiseRng = mulberry32(this.seed + 777);
+                const sr = this.ctx.sampleRate;
+
+                // Hi-hat noise (0.15s)
+                const hatLen = Math.floor(sr * 0.15);
+                this.hatNoiseBuf = this.ctx.createBuffer(1, hatLen, sr);
+                const hatData = this.hatNoiseBuf.getChannelData(0);
+                for (let i = 0; i < hatLen; i++) hatData[i] = noiseRng() * 2 - 1;
+
+                // Snare noise (0.25s)
+                const snareLen = Math.floor(sr * 0.25);
+                this.snareNoiseBuf = this.ctx.createBuffer(1, snareLen, sr);
+                const snareData = this.snareNoiseBuf.getChannelData(0);
+                for (let i = 0; i < snareLen; i++) snareData[i] = noiseRng() * 2 - 1;
+
+                // Vinyl crackle (3s, looped) — more detailed
+                const vinylLen = Math.floor(sr * 3);
+                this.vinylBuf = this.ctx.createBuffer(2, vinylLen, sr);
+                for (let ch = 0; ch < 2; ch++) {
+                    const data = this.vinylBuf.getChannelData(ch);
+                    for (let i = 0; i < vinylLen; i++) {
+                        let sample = 0;
+                        // Constant very faint hiss
+                        sample += (noiseRng() * 2 - 1) * 0.015;
+                        // Occasional clicks (sparse)
+                        if (noiseRng() < 0.002) {
+                            sample += (noiseRng() * 2 - 1) * 0.4;
+                        }
+                        // Occasional soft pops
+                        if (noiseRng() < 0.0005) {
+                            sample += (noiseRng() > 0.5 ? 1 : -1) * 0.25;
+                        }
+                        data[i] = sample;
+                    }
+                }
+            }
+
+            // ---- Song Generation ----
+
+            _generateSongParams() {
+                const r = this.rng;
+                const scaleNames = Object.keys(LOFI_CONFIG.scales);
+                const scaleName = scaleNames[Math.floor(r() * scaleNames.length)];
+                const scale = LOFI_CONFIG.scales[scaleName];
+
+                // Key: MIDI 48-55 (C3-G3) — slightly lower range for warmth
+                const rootMidi = 48 + Math.floor(r() * 7);
+
+                // Tempo
+                const [tMin, tMax] = LOFI_CONFIG.tempoRange;
+                const bpm = Math.floor(tMin + r() * (tMax - tMin));
+                const stepDur = 60 / bpm / 4;
+
+                // Swing (moderate, lofi groove)
+                const swing = 0.12 + r() * 0.18;
+
+                // Choose chord progression
+                const progIdx = Math.floor(r() * LOFI_CONFIG.progressions.length);
+                const progression = LOFI_CONFIG.progressions[progIdx];
+
+                // Build MIDI chord arrays with spread voicings
+                const chords = this._buildChordVoicings(progression, scale, rootMidi, r);
+
+                // Generate patterns
+                const drums = this._generateDrumPattern(r);
+                const bass = this._generateBassPattern(r, chords, scale, rootMidi);
+                const melody = this._generateMelodySequence(r, scale, rootMidi);
+
+                // Arrangement: which instruments play in which 4-bar section
+                const arrangement = this._generateArrangement(r);
+
+                // Tape wobble rate
+                const wobbleRate = 0.35 + r() * 0.35;
+                if (this.tapeWobbleLFO) this.tapeWobbleLFO.frequency.value = wobbleRate;
+
+                return { scaleName, rootMidi, bpm, stepDur, swing, progression, chords, drums, bass, melody, arrangement, wobbleRate };
+            }
+
+            _buildChordVoicings(progression, scale, rootMidi, r) {
+                return progression.map(({ deg, type }, idx) => {
+                    const degIdx = deg - 1;
+                    const semitoneOffset = scale[degIdx % scale.length] + 12 * Math.floor(degIdx / scale.length);
+                    const chordRoot = rootMidi + semitoneOffset;
+                    const intervals = LOFI_CONFIG.chordTypes[type];
+
+                    // Create spread voicing: drop some notes down, spread across octaves
+                    let notes = intervals.map(iv => chordRoot + iv);
+
+                    // Drop-2 voicing: take the second note from top and drop it an octave
+                    if (notes.length >= 4 && r() > 0.3) {
+                        notes[notes.length - 2] -= 12;
+                        notes.sort((a, b) => a - b);
+                    }
+
+                    // Sometimes add an inversion (rotate lowest note up an octave)
+                    if (r() > 0.5) {
+                        notes[0] += 12;
+                        notes.sort((a, b) => a - b);
+                    }
+
+                    // Slight random voicing shift for each chord to avoid sameness
+                    // Shift the whole voicing into a comfortable range (MIDI 48-72)
+                    while (notes[0] < 48) notes = notes.map(n => n + 12);
+                    while (notes[notes.length - 1] > 76) notes = notes.map(n => n - 12);
+
+                    return notes;
+                });
+            }
+
+            _generateArrangement(r) {
+                // 8 sections of 4 bars each = 32 bars total, then loops
+                // Each section specifies which layers are active
+                // This creates the intro/build/drop feel
+                const sections = [];
+
+                // Section 0: Intro — just rhodes + vinyl (C418 ambient opening)
+                sections.push({ rhodes: true, bass: false, drums: false, melody: false, pad: true });
+                // Section 1: Add melody
+                sections.push({ rhodes: true, bass: false, drums: false, melody: true, pad: true });
+                // Section 2: Drums come in
+                sections.push({ rhodes: true, bass: true, drums: true, melody: true, pad: true });
+                // Section 3: Full groove
+                sections.push({ rhodes: true, bass: true, drums: true, melody: true, pad: false });
+                // Section 4: Drop out — just chords + bass (breathing room)
+                sections.push({ rhodes: true, bass: true, drums: false, melody: false, pad: true });
+                // Section 5: Build back
+                sections.push({ rhodes: true, bass: true, drums: true, melody: false, pad: true });
+                // Section 6: Full with melody
+                sections.push({ rhodes: true, bass: true, drums: true, melody: true, pad: false });
+                // Section 7: Outro — sparse, back to ambient
+                sections.push({ rhodes: true, bass: false, drums: false, melody: true, pad: true });
+
+                return sections;
+            }
+
+            _generateDrumPattern(r) {
+                const kick = new Array(16).fill(0);
+                const snare = new Array(16).fill(0);
+                const hihat = new Array(16).fill(0);
+                const openHat = new Array(16).fill(0);
+
+                // Kick: softer, rounder — beat 1 and 3 with occasional ghost
+                kick[0] = 1; kick[8] = 0.9;
+                if (r() > 0.5) kick[6] = 0.4;
+                if (r() > 0.65) kick[10] = 0.35;
+                if (r() > 0.75) kick[14] = 0.3;
+
+                // Snare: rimshot feel — beat 2 and 4 with ghost notes
+                snare[4] = 1; snare[12] = 0.95;
+                if (r() > 0.55) snare[7] = 0.2;
+                if (r() > 0.6) snare[15] = 0.25;
+                if (r() > 0.8) snare[3] = 0.15;
+
+                // Hi-hats: gentle 8th notes, some ghosted 16ths
+                for (let i = 0; i < 16; i += 2) {
+                    hihat[i] = 0.5 + r() * 0.3;
+                }
+                for (let i = 1; i < 16; i += 2) {
+                    if (r() > 0.55) hihat[i] = 0.15 + r() * 0.2;
+                }
+                // Open hat
+                if (r() > 0.4) openHat[2] = 0.4;
+                if (r() > 0.6) openHat[10] = 0.35;
+                if (r() > 0.7) openHat[6] = 0.3;
+
+                return { kick, snare, hihat, openHat };
+            }
+
+            _generateBassPattern(r, chords, scale, rootMidi) {
+                return chords.map((chord) => {
+                    const pattern = new Array(16).fill(null);
+                    const bassRoot = chord[0] - 12;
+
+                    // Root on beat 1
+                    pattern[0] = { note: bassRoot, vel: 0.9 };
+
+                    // Beat 3: root or fifth
+                    const fifth = bassRoot + 7;
+                    pattern[8] = { note: r() > 0.4 ? fifth : bassRoot, vel: 0.7 };
+
+                    // Chromatic approach note before beat 3 sometimes
+                    if (r() > 0.5) {
+                        const target = pattern[8].note;
+                        pattern[7] = { note: target + (r() > 0.5 ? -1 : 1), vel: 0.3 };
+                    }
+
+                    // Occasional fills
+                    if (r() > 0.5) pattern[10] = { note: bassRoot + scale[Math.floor(r() * scale.length)], vel: 0.45 };
+                    if (r() > 0.6) pattern[14] = { note: bassRoot, vel: 0.3 };
+                    if (r() > 0.7) pattern[4] = { note: bassRoot + scale[Math.floor(r() * Math.min(3, scale.length))], vel: 0.35 };
+
+                    return pattern;
+                });
+            }
+
+            _generateMelodySequence(r, scale, rootMidi) {
+                // C418-style: sparse, dreamy, pentatonic-leaning, lots of space
+                const bars = [];
+                // Use pentatonic subset for more C418 feel if available
+                const melScale = LOFI_CONFIG.scales.minorPentatonic;
+                let prevNote = rootMidi + 12 + melScale[Math.floor(r() * melScale.length)];
+
+                for (let bar = 0; bar < 4; bar++) {
+                    const pattern = new Array(16).fill(null);
+                    // 2-4 notes per bar (sparser than before — C418 is minimal)
+                    const noteCount = 2 + Math.floor(r() * 3);
+                    const positions = [];
+
+                    for (let n = 0; n < noteCount; n++) {
+                        let pos;
+                        let tries = 0;
+                        do {
+                            // Weight toward beats and off-beats (not rapid 16ths)
+                            const weighted = [0, 2, 4, 6, 8, 10, 12, 14];
+                            pos = weighted[Math.floor(r() * weighted.length)];
+                            // Occasionally allow a 16th note position
+                            if (r() > 0.7) pos = Math.floor(r() * 16);
+                            tries++;
+                        } while (positions.includes(pos) && tries < 20);
+                        positions.push(pos);
+                    }
+                    positions.sort((a, b) => a - b);
+
+                    for (const pos of positions) {
+                        // Small random walk on pentatonic scale (smooth, singable intervals)
+                        const step = Math.floor(r() * 3) - 1; // -1 to +1 scale steps (smaller steps = more melodic)
+                        const nearestIdx = this._findNearestScaleIdx(prevNote, rootMidi, melScale);
+                        let newIdx = nearestIdx + step;
+                        let octaveShift = 0;
+                        if (newIdx < 0) { newIdx += melScale.length; octaveShift = -12; }
+                        if (newIdx >= melScale.length) { newIdx -= melScale.length; octaveShift = 12; }
+
+                        let newNote = rootMidi + 12 + melScale[newIdx % melScale.length] + octaveShift;
+                        // Clamp to 1-2 octaves above root
+                        while (newNote < rootMidi + 7) newNote += 12;
+                        while (newNote > rootMidi + 31) newNote -= 12;
+                        prevNote = newNote;
+
+                        // Longer note durations (C418 style — sustained, dreamy)
+                        const dur = 2 + Math.floor(r() * 4); // 2-5 16ths
+
+                        pattern[pos] = { note: newNote, dur, vel: 0.35 + r() * 0.3 };
+                    }
+
+                    // Occasionally leave a bar completely empty (breathing room)
+                    if (r() > 0.75) {
+                        for (let i = 0; i < 16; i++) pattern[i] = null;
+                    }
+
+                    bars.push(pattern);
+                }
+                return bars;
+            }
+
+            _findNearestScaleIdx(note, root, scale) {
+                const pc = ((note - root) % 12 + 12) % 12;
+                let bestIdx = 0, bestDist = 99;
+                for (let i = 0; i < scale.length; i++) {
+                    const dist = Math.abs(scale[i] - pc);
+                    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+                }
+                return bestIdx;
+            }
+
+            // ---- Beat Scheduler ----
+
+            start() {
+                if (!this.ctx || this.started) return;
+                this.started = true;
+                this.currentStep = 0;
+                this.barCount = 0;
+                this.nextStepTime = this.ctx.currentTime + 0.1;
+                this._startVinylCrackle();
+                this.schedulerInterval = setInterval(() => this._schedulerTick(), 25);
+            }
+
+            stop() {
+                if (this.schedulerInterval) {
+                    clearInterval(this.schedulerInterval);
+                    this.schedulerInterval = null;
+                }
+                if (this.vinylSource) {
+                    try { this.vinylSource.stop(); } catch(e) {}
+                    this.vinylSource = null;
+                }
+                this.started = false;
+            }
+
+            toggleMute() {
+                if (!this.ctx || !this.masterGain) return;
+                this.muted = !this.muted;
+                const now = this.ctx.currentTime;
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+                this.masterGain.gain.linearRampToValueAtTime(
+                    this.muted ? 0 : LOFI_CONFIG.volumes.master, now + 0.5
+                );
+                return this.muted;
+            }
+
+            setBiome(biome) { /* stub */ }
+
+            _startVinylCrackle() {
+                this.vinylSource = this.ctx.createBufferSource();
+                this.vinylSource.buffer = this.vinylBuf;
+                this.vinylSource.loop = true;
+                this.vinylSource.connect(this.vinylGain);
+                this.vinylSource.start();
+            }
+
+            _schedulerTick() {
+                if (!this.started || !this.ctx) return;
+                const lookAhead = 0.1;
+                while (this.nextStepTime < this.ctx.currentTime + lookAhead) {
+                    this._scheduleStep(this.nextStepTime, this.currentStep);
+                    const sp = this.songParams;
+                    let dur = sp.stepDur;
+                    if (this.currentStep % 2 === 1) dur += sp.stepDur * sp.swing;
+                    this.nextStepTime += dur;
+                    this.currentStep++;
+                    if (this.currentStep >= 16) {
+                        this.currentStep = 0;
+                        this.barCount++;
+                    }
+                }
+            }
+
+            _scheduleStep(time, step) {
+                const sp = this.songParams;
+                const chordIdx = this.barCount % sp.chords.length;
+                const chord = sp.chords[chordIdx];
+
+                // Arrangement: which section are we in?
+                const sectionIdx = Math.floor(this.barCount / 4) % sp.arrangement.length;
+                const section = sp.arrangement[sectionIdx];
+
+                // --- Side-chain ducking on kick hits ---
+                if (section.drums && sp.drums.kick[step] > 0) {
+                    this._applySidechain(time, sp.drums.kick[step]);
+                }
+
+                // --- Drums ---
+                if (section.drums) {
+                    if (sp.drums.kick[step] > 0) this._playKick(time, sp.drums.kick[step]);
+                    if (sp.drums.snare[step] > 0) this._playSnare(time, sp.drums.snare[step]);
+                    if (sp.drums.hihat[step] > 0) this._playHiHat(time, sp.drums.openHat[step] > 0, sp.drums.hihat[step]);
+                }
+
+                // --- Rhodes chord: play on beat 1, sustain whole bar ---
+                if (section.rhodes && step === 0) {
+                    const barDur = sp.stepDur * 16;
+                    this._playRhodesChord(time, chord, barDur * 0.95);
+                }
+
+                // --- Ambient pad (C418 signature) ---
+                if (section.pad && step === 0) {
+                    const barDur = sp.stepDur * 16;
+                    this._playPad(time, chord, barDur * 1.2);
+                }
+
+                // --- Bass ---
+                if (section.bass) {
+                    const bassPattern = sp.bass[chordIdx];
+                    if (bassPattern[step]) {
+                        const { note, vel } = bassPattern[step];
+                        let dur = sp.stepDur * 2;
+                        for (let s = step + 1; s < 16; s++) {
+                            if (bassPattern[s]) break;
+                            dur += sp.stepDur;
+                        }
+                        this._playBassNote(time, note, Math.min(dur, sp.stepDur * 8), vel);
+                    }
+                }
+
+                // --- Melody ---
+                if (section.melody) {
+                    const melodyPattern = sp.melody[chordIdx];
+                    if (melodyPattern[step]) {
+                        const { note, dur, vel } = melodyPattern[step];
+                        this._playMelodyNote(time, note, sp.stepDur * dur, vel);
+                    }
+                }
+
+                // Viz callback
+                if (this.onStep) {
+                    this.onStep(step, {
+                        kick: section.drums ? sp.drums.kick[step] : 0,
+                        snare: section.drums ? sp.drums.snare[step] : 0,
+                        hihat: section.drums ? sp.drums.hihat[step] : 0,
+                        bass: (section.bass && sp.bass[chordIdx][step]) ? 1 : 0,
+                        melody: (section.melody && sp.melody[chordIdx][step]) ? 1 : 0,
+                        chord: step === 0 ? 1 : 0,
+                        section: sectionIdx,
+                    });
+                }
+            }
+
+            // ---- Side-chain Compression (the lofi pump) ----
+
+            _applySidechain(time, intensity) {
+                const g = this.duckBus.gain;
+                const duckAmount = 0.35 * intensity; // How much to duck (0 = full duck)
+                const attackTime = 0.008;
+                const releaseTime = 0.18;
+
+                g.cancelScheduledValues(time);
+                g.setValueAtTime(1.0, time);
+                // Quick duck
+                g.linearRampToValueAtTime(1.0 - duckAmount, time + attackTime);
+                // Smooth release (the "pump" feel)
+                g.linearRampToValueAtTime(1.0, time + releaseTime);
+            }
+
+            // ---- Instrument Voices ----
+
+            _playRhodesChord(time, notes, dur) {
+                const vol = LOFI_CONFIG.volumes.rhodes;
+                const noteCount = notes.length;
+
+                for (let i = 0; i < noteCount; i++) {
+                    const midi = notes[i];
+                    const freq = LOFI_CONFIG.midiToFreq(midi);
+
+                    // FM synthesis: modulator at ~2:1 ratio
+                    const mod = this.ctx.createOscillator();
+                    mod.type = 'sine';
+                    mod.frequency.value = freq * 2.001; // Slight detune for character
+                    const modGain = this.ctx.createGain();
+                    // Lower modulation index = warmer, less metallic
+                    modGain.gain.setValueAtTime(freq * 0.8, time);
+                    modGain.gain.exponentialRampToValueAtTime(freq * 0.1, time + dur * 0.5);
+                    mod.connect(modGain);
+
+                    // Carrier
+                    const carrier = this.ctx.createOscillator();
+                    carrier.type = 'sine';
+                    carrier.frequency.value = freq;
+                    modGain.connect(carrier.frequency);
+
+                    // Second carrier slightly detuned (chorus/warmth)
+                    const carrier2 = this.ctx.createOscillator();
+                    carrier2.type = 'sine';
+                    carrier2.frequency.value = freq * 1.003; // ~5 cents sharp
+                    const c2Gain = this.ctx.createGain();
+                    c2Gain.gain.value = 0.3; // Blend in subtly
+                    carrier2.connect(c2Gain);
+
+                    // Per-voice LPF — darker, warmer
+                    const lpf = this.ctx.createBiquadFilter();
+                    lpf.type = 'lowpass';
+                    lpf.frequency.setValueAtTime(2200, time);
+                    lpf.frequency.exponentialRampToValueAtTime(800, time + dur * 0.6);
+                    lpf.Q.value = 0.5;
+
+                    // Amplitude envelope: soft attack, long sustain, gentle release
+                    const env = this.ctx.createGain();
+                    const noteVol = vol / Math.sqrt(noteCount); // Balance chord voicing volume
+                    env.gain.setValueAtTime(0, time);
+                    env.gain.linearRampToValueAtTime(noteVol, time + 0.02);
+                    env.gain.setValueAtTime(noteVol, time + 0.05);
+                    env.gain.exponentialRampToValueAtTime(noteVol * 0.4, time + dur * 0.5);
+                    env.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+                    carrier.connect(lpf);
+                    c2Gain.connect(lpf);
+                    lpf.connect(env);
+                    env.connect(this.duckBus);
+
+                    mod.start(time);
+                    mod.stop(time + dur + 0.1);
+                    carrier.start(time);
+                    carrier.stop(time + dur + 0.1);
+                    carrier2.start(time);
+                    carrier2.stop(time + dur + 0.1);
+                }
+            }
+
+            _playPad(time, chordNotes, dur) {
+                // C418-style ambient pad: soft, filtered, lots of reverb
+                const vol = LOFI_CONFIG.volumes.pad;
+                // Use just the root and fifth from the chord for a simple pad
+                const padNotes = [chordNotes[0], chordNotes[Math.min(2, chordNotes.length - 1)]];
+
+                for (const midi of padNotes) {
+                    const freq = LOFI_CONFIG.midiToFreq(midi);
+
+                    // Two detuned saws, heavily filtered
+                    const osc1 = this.ctx.createOscillator();
+                    osc1.type = 'sawtooth';
+                    osc1.frequency.value = freq * 0.998;
+                    const osc2 = this.ctx.createOscillator();
+                    osc2.type = 'sawtooth';
+                    osc2.frequency.value = freq * 1.002;
+
+                    // Heavy LPF — almost muffled
+                    const lpf = this.ctx.createBiquadFilter();
+                    lpf.type = 'lowpass';
+                    lpf.frequency.setValueAtTime(600, time);
+                    lpf.frequency.linearRampToValueAtTime(900, time + dur * 0.3);
+                    lpf.frequency.linearRampToValueAtTime(500, time + dur);
+                    lpf.Q.value = 1;
+
+                    // Very slow envelope (ambient swell)
+                    const env = this.ctx.createGain();
+                    env.gain.setValueAtTime(0, time);
+                    env.gain.linearRampToValueAtTime(vol, time + dur * 0.3);
+                    env.gain.setValueAtTime(vol, time + dur * 0.6);
+                    env.gain.linearRampToValueAtTime(0, time + dur);
+
+                    osc1.connect(lpf);
+                    osc2.connect(lpf);
+                    lpf.connect(env);
+                    // Pad goes mostly to reverb for spaciousness
+                    const padDry = this.ctx.createGain();
+                    padDry.gain.value = 0.3;
+                    const padWet = this.ctx.createGain();
+                    padWet.gain.value = 0.7;
+                    env.connect(padDry);
+                    env.connect(padWet);
+                    padDry.connect(this.duckBus);
+                    padWet.connect(this.reverbSend);
+
+                    osc1.start(time);
+                    osc1.stop(time + dur + 0.2);
+                    osc2.start(time);
+                    osc2.stop(time + dur + 0.2);
+                }
+            }
+
+            _playBassNote(time, midi, dur, vel = 1) {
+                const freq = LOFI_CONFIG.midiToFreq(midi);
+                const vol = LOFI_CONFIG.volumes.bass * vel;
+
+                // Triangle + sub sine (warm, round bass)
+                const osc = this.ctx.createOscillator();
+                osc.type = 'triangle';
+                osc.frequency.value = freq;
+
+                const sub = this.ctx.createOscillator();
+                sub.type = 'sine';
+                sub.frequency.value = freq / 2;
+                const subGain = this.ctx.createGain();
+                subGain.gain.value = 0.6;
+                sub.connect(subGain);
+
+                // LPF with envelope (plucky attack, then muffled)
+                const lpf = this.ctx.createBiquadFilter();
+                lpf.type = 'lowpass';
+                lpf.frequency.setValueAtTime(1200, time);
+                lpf.frequency.exponentialRampToValueAtTime(350, time + dur * 0.3);
+                lpf.Q.value = 2; // Slight resonance for pluck character
+
+                // Amp envelope
+                const env = this.ctx.createGain();
+                env.gain.setValueAtTime(0, time);
+                env.gain.linearRampToValueAtTime(vol, time + 0.01);
+                env.gain.setValueAtTime(vol, time + 0.02);
+                env.gain.exponentialRampToValueAtTime(vol * 0.5, time + dur * 0.4);
+                env.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+                osc.connect(lpf);
+                subGain.connect(lpf);
+                lpf.connect(env);
+                env.connect(this.duckBus);
+
+                osc.start(time);
+                osc.stop(time + dur + 0.05);
+                sub.start(time);
+                sub.stop(time + dur + 0.05);
+            }
+
+            _playKick(time, vel = 1) {
+                const vol = LOFI_CONFIG.volumes.kick * vel;
+
+                // Sine body: pitch sweep 120 -> 45 Hz (softer, rounder than before)
+                const body = this.ctx.createOscillator();
+                body.type = 'sine';
+                body.frequency.setValueAtTime(120, time);
+                body.frequency.exponentialRampToValueAtTime(45, time + 0.1);
+
+                // Subtle click (softer square, very short)
+                const click = this.ctx.createOscillator();
+                click.type = 'triangle'; // Softer than square
+                click.frequency.value = 600;
+                const clickGain = this.ctx.createGain();
+                clickGain.gain.setValueAtTime(vol * 0.3, time);
+                clickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.012);
+                click.connect(clickGain);
+                clickGain.connect(this.drumBus);
+                click.start(time);
+                click.stop(time + 0.015);
+
+                // Body envelope: longer, rounder tail
+                const env = this.ctx.createGain();
+                env.gain.setValueAtTime(0, time);
+                env.gain.linearRampToValueAtTime(vol, time + 0.005);
+                env.gain.setValueAtTime(vol, time + 0.015);
+                env.gain.exponentialRampToValueAtTime(vol * 0.3, time + 0.1);
+                env.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+
+                // Kick LPF (remove upper harmonics for warmth)
+                const lpf = this.ctx.createBiquadFilter();
+                lpf.type = 'lowpass';
+                lpf.frequency.value = 200;
+
+                body.connect(lpf);
+                lpf.connect(env);
+                env.connect(this.drumBus);
+
+                body.start(time);
+                body.stop(time + 0.45);
+            }
+
+            _playSnare(time, vel = 1) {
+                const vol = LOFI_CONFIG.volumes.snare * vel;
+
+                // Noise through bandpass (wider, more natural)
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.snareNoiseBuf;
+                const bp = this.ctx.createBiquadFilter();
+                bp.type = 'bandpass';
+                bp.frequency.value = 2500;
+                bp.Q.value = 0.8;
+
+                // Noise HPF to thin out low-end rumble
+                const hpf = this.ctx.createBiquadFilter();
+                hpf.type = 'highpass';
+                hpf.frequency.value = 400;
+
+                const noiseEnv = this.ctx.createGain();
+                noiseEnv.gain.setValueAtTime(vol * 0.8, time);
+                noiseEnv.gain.exponentialRampToValueAtTime(vol * 0.15, time + 0.08);
+                noiseEnv.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+
+                noise.connect(bp);
+                bp.connect(hpf);
+                hpf.connect(noiseEnv);
+                noiseEnv.connect(this.drumBus);
+                // Light reverb on snare
+                const snareReverb = this.ctx.createGain();
+                snareReverb.gain.value = 0.15;
+                noiseEnv.connect(snareReverb);
+                snareReverb.connect(this.reverbSend);
+                noise.start(time);
+
+                // Body tone (triangle, tuned)
+                const body = this.ctx.createOscillator();
+                body.type = 'triangle';
+                body.frequency.setValueAtTime(180, time);
+                body.frequency.exponentialRampToValueAtTime(130, time + 0.04);
+                const bodyEnv = this.ctx.createGain();
+                bodyEnv.gain.setValueAtTime(vol * 0.5, time);
+                bodyEnv.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+                body.connect(bodyEnv);
+                bodyEnv.connect(this.drumBus);
+                body.start(time);
+                body.stop(time + 0.1);
+            }
+
+            _playHiHat(time, open = false, vel = 1) {
+                const isOpen = open;
+                const vol = isOpen ? LOFI_CONFIG.volumes.openHat * vel : LOFI_CONFIG.volumes.hihat * vel;
+                const dur = isOpen ? 0.15 : 0.035;
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.hatNoiseBuf;
+
+                // HPF — hats are all highs
+                const hp = this.ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.value = isOpen ? 6000 : 8000;
+
+                // Gentle bandpass color
+                const bp = this.ctx.createBiquadFilter();
+                bp.type = 'peaking';
+                bp.frequency.value = 10000;
+                bp.gain.value = 3;
+                bp.Q.value = 1;
+
+                const env = this.ctx.createGain();
+                env.gain.setValueAtTime(vol, time);
+                env.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+                noise.connect(hp);
+                hp.connect(bp);
+                bp.connect(env);
+                env.connect(this.drumBus);
+                noise.start(time);
+            }
+
+            _playMelodyNote(time, midi, dur, vel = 1) {
+                const freq = LOFI_CONFIG.midiToFreq(midi);
+                const vol = LOFI_CONFIG.volumes.melody * vel;
+
+                // C418-style: clean sine with subtle harmonics, drenched in reverb
+                const osc = this.ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+
+                // Subtle triangle layer (adds warmth without brightness)
+                const tri = this.ctx.createOscillator();
+                tri.type = 'triangle';
+                tri.frequency.value = freq;
+                const triGain = this.ctx.createGain();
+                triGain.gain.value = 0.2;
+                tri.connect(triGain);
+
+                // Very slight vibrato (pitch drift, human feel)
+                const vibLFO = this.ctx.createOscillator();
+                vibLFO.type = 'sine';
+                vibLFO.frequency.value = 4.5;
+                const vibDepth = this.ctx.createGain();
+                vibDepth.gain.value = freq * 0.003; // ~5 cents
+                vibLFO.connect(vibDepth);
+                vibDepth.connect(osc.frequency);
+                vibDepth.connect(tri.frequency);
+                vibLFO.start(time);
+                vibLFO.stop(time + dur + 0.1);
+
+                // Gentle LPF
+                const lpf = this.ctx.createBiquadFilter();
+                lpf.type = 'lowpass';
+                lpf.frequency.value = 2500;
+
+                // Soft envelope (slower attack for dreamy feel)
+                const env = this.ctx.createGain();
+                env.gain.setValueAtTime(0, time);
+                env.gain.linearRampToValueAtTime(vol, time + 0.05);
+                env.gain.setValueAtTime(vol, time + 0.06);
+                env.gain.exponentialRampToValueAtTime(vol * 0.6, time + dur * 0.5);
+                env.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+                osc.connect(lpf);
+                triGain.connect(lpf);
+                lpf.connect(env);
+
+                // Melody: heavy reverb send (C418 spaciousness)
+                const melDry = this.ctx.createGain();
+                melDry.gain.value = 0.5;
+                const melWet = this.ctx.createGain();
+                melWet.gain.value = 0.6;
+                env.connect(melDry);
+                env.connect(melWet);
+                melDry.connect(this.duckBus);
+                melWet.connect(this.reverbSend);
+
+                osc.start(time);
+                osc.stop(time + dur + 0.1);
+                tri.start(time);
+                tri.stop(time + dur + 0.1);
+            }
+
+            // ---- Info ----
+
+            getSongInfo() {
+                if (!this.songParams) return '';
+                const sp = this.songParams;
+                const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+                const rootName = noteNames[sp.rootMidi % 12];
+                const octave = Math.floor(sp.rootMidi / 12) - 1;
+                const progStr = sp.progression.map(({ deg, type }) => {
+                    const degNames = ['I','II','III','IV','V','VI','VII'];
+                    return degNames[deg - 1] + type;
+                }).join(' - ');
+                return `Key: ${rootName}${octave} ${sp.scaleName} | BPM: ${sp.bpm} | Swing: ${Math.round(sp.swing * 100)}%\nProgression: ${progStr}`;
+            }
+        }
+
+        // ============================================
         // PROCEDURAL TEXTURE GENERATOR
         // ============================================
         class TextureGenerator {
@@ -7738,6 +8726,7 @@
                 this.projectileSystem.setEntityManager(this.entityManager);
                 this.npcManager = new NPCManager(this.scene, this.world);
                 this.npcManager.game = this;
+                this.lofiMusic = new LofiMusicSystem(seed);
 
                 this.initHotbar();
                 this.initControls();
@@ -8126,6 +9115,10 @@
 
             startGame() {
                 this.audio.init();
+                if (this.lofiMusic && !this.lofiMusic.started) {
+                    this.lofiMusic.init(this.audio.ctx);
+                    this.lofiMusic.start();
+                }
                 this.container.requestPointerLock();
                 document.getElementById('click-to-start').style.display = 'none';
             }
@@ -8350,6 +9343,9 @@
                         case 'KeyC':
                             this.player.toggleCreativeMode();
                             this.updateGameModeDisplay();
+                            break;
+                        case 'KeyM':
+                            if (this.lofiMusic) this.lofiMusic.toggleMute();
                             break;
                         case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Digit5':
                         case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9':
