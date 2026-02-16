@@ -6085,6 +6085,13 @@
                     if (dist < radius) {
                         const knockback = entity.position.clone().sub(position).normalize();
                         const dmg = damage * (1 - dist / radius);
+                        // Visual red flash on shooter's client
+                        if (entity.mesh) {
+                            entity.mesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0xff0000); });
+                            setTimeout(() => {
+                                if (entity.mesh) entity.mesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0x000000); });
+                            }, 200);
+                        }
                         if (this.game && this.game.networkManager && this.game.networkManager.connected && entity.networkId) {
                             this.game.networkManager.sendDamageEntity(entity.networkId, dmg, knockback);
                         } else {
@@ -6115,6 +6122,13 @@
 
                 if (closestEntity) {
                     const knockback = direction.clone();
+                    // Visual red flash on shooter's client (immediate feedback)
+                    if (closestEntity.mesh) {
+                        closestEntity.mesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0xff0000); });
+                        setTimeout(() => {
+                            if (closestEntity.mesh) closestEntity.mesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0x000000); });
+                        }, 200);
+                    }
                     // In multiplayer, route damage through network
                     if (this.game && this.game.networkManager && this.game.networkManager.connected && closestEntity.networkId) {
                         this.game.networkManager.sendDamageEntity(closestEntity.networkId, damage, knockback);
@@ -8072,7 +8086,7 @@
             initScene() {
                 this.scene = new THREE.Scene();
                 this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.008);
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+                this.camera = new THREE.PerspectiveCamera(110, window.innerWidth / window.innerHeight, 0.1, 500);
             }
 
             initLighting() {
@@ -8497,13 +8511,26 @@
 
                 if (closestHit) {
                     const kb = direction.clone();
+                    // Visual red flash on shooter's client for the hit target
+                    let flashMesh = null;
                     if (closestHit.type === 'player') {
+                        const rp = this.networkManager.remotePlayers.get(closestHit.id);
+                        if (rp) flashMesh = rp.mesh;
                         this.sendPvPDamage(closestHit.id, pvpDamage);
                     } else if (closestHit.type === 'npc') {
+                        flashMesh = closestHit.npc.remote.mesh;
                         closestHit.npc.takeDamage(pvpDamage, kb);
                         if (this.networkManager) this.networkManager.broadcastNPCDamage(closestHit.npc.remote.id, pvpDamage);
                     } else if (closestHit.type === 'remoteNpc') {
+                        const rp = this.npcManager.remoteNPCs.get(closestHit.npcId);
+                        if (rp) flashMesh = rp.mesh;
                         if (this.networkManager) this.networkManager.sendNPCDamage(closestHit.npcId, pvpDamage);
+                    }
+                    if (flashMesh) {
+                        flashMesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0xff0000); });
+                        setTimeout(() => {
+                            if (flashMesh) flashMesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0x000000); });
+                        }, 200);
                     }
                     this.audio.play('hit');
                     return true;
@@ -8517,7 +8544,15 @@
                 if (this.networkManager) {
                     for (const [peerId, rp] of this.networkManager.remotePlayers) {
                         const dist = rp.position.distanceTo(position);
-                        if (dist < radius) this.sendPvPDamage(peerId, pvpDamage * (1 - dist / radius));
+                        if (dist < radius) {
+                            this.sendPvPDamage(peerId, pvpDamage * (1 - dist / radius));
+                            if (rp.mesh) {
+                                rp.mesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0xff0000); });
+                                setTimeout(() => {
+                                    if (rp.mesh) rp.mesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0x000000); });
+                                }, 200);
+                            }
+                        }
                     }
                 }
                 if (this.npcManager) {
@@ -8538,6 +8573,12 @@
                             const dist = rp.position.distanceTo(position);
                             if (dist < radius) {
                                 if (this.networkManager) this.networkManager.sendNPCDamage(npcId, pvpDamage * (1 - dist / radius));
+                                if (rp.mesh) {
+                                    rp.mesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0xff0000); });
+                                    setTimeout(() => {
+                                        if (rp.mesh) rp.mesh.traverse(c => { if (c.material) c.material.emissive = new THREE.Color(0x000000); });
+                                    }, 200);
+                                }
                             }
                         }
                     }
@@ -8589,29 +8630,19 @@
             }
 
             updateFrustumCulling() {
-                // Update camera matrices BEFORE computing frustum (otherwise 1-frame lag)
-                this.camera.updateMatrixWorld();
-                this.frustum = this.frustum || new THREE.Frustum();
-                this.projScreenMatrix = this.projScreenMatrix || new THREE.Matrix4();
-                this.projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
-                this.frustum.setFromProjectionMatrix(this.projScreenMatrix);
-
-                // Cull chunks based on frustum with generous padding
-                const chunkHalfSize = CONFIG.CHUNK_SIZE / 2;
-                const chunkHeight = CONFIG.WORLD_HEIGHT / 2;
-                const padding = 8; // Extra radius to prevent edge popping
+                // Simple distance-based culling only - no frustum sphere test
+                // (frustum sphere tests were causing transparent meshes to pop out)
+                const px = this.player.position.x;
+                const pz = this.player.position.z;
+                const maxDist = (CONFIG.RENDER_DISTANCE + 1) * CONFIG.CHUNK_SIZE;
+                const maxDistSq = maxDist * maxDist;
+                const halfChunk = CONFIG.CHUNK_SIZE / 2;
 
                 for (const [key, group] of this.meshBuilder.chunkMeshes) {
                     const [cx, cz] = key.split(',').map(Number);
-                    const centerX = cx * CONFIG.CHUNK_SIZE + chunkHalfSize;
-                    const centerZ = cz * CONFIG.CHUNK_SIZE + chunkHalfSize;
-
-                    const sphere = new THREE.Sphere(
-                        new THREE.Vector3(centerX, chunkHeight, centerZ),
-                        Math.sqrt(chunkHalfSize * chunkHalfSize * 2 + chunkHeight * chunkHeight) + padding
-                    );
-
-                    group.visible = this.frustum.intersectsSphere(sphere);
+                    const dx = cx * CONFIG.CHUNK_SIZE + halfChunk - px;
+                    const dz = cz * CONFIG.CHUNK_SIZE + halfChunk - pz;
+                    group.visible = (dx * dx + dz * dz) <= maxDistSq;
                 }
             }
 
