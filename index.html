@@ -3894,7 +3894,11 @@
                     geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(data.indices), 1));
                     geometry.computeBoundingSphere();
                     const material = this.materials[data.block]?.[data.face];
-                    if (material) group.add(new THREE.Mesh(geometry, material));
+                    if (material) {
+                        const mesh = new THREE.Mesh(geometry, material);
+                        mesh.frustumCulled = false; // We cull at group level
+                        group.add(mesh);
+                    }
                 }
                 this.scene.add(group); this.chunkMeshes.set(key, group);
             }
@@ -4494,9 +4498,12 @@
                     }
                 }
 
-                // Damage entities in radius
+                // Damage entities and players in radius
                 if (this.entityManager) {
                     this.entityManager.damageEntitiesInRadius(new THREE.Vector3(x, y, z), radius * 1.5, radius * 3);
+                }
+                if (this.game) {
+                    this.game.damagePlayersInRadius(new THREE.Vector3(x, y, z), radius * 1.5, radius * 3);
                 }
 
                 // Flash light
@@ -6677,6 +6684,9 @@
                     case 'NPC_STATE_BATCH':
                         this.handleNPCStateBatch(msg);
                         break;
+                    case 'DAMAGE_NPC':
+                        this.handleNPCDamage(msg);
+                        break;
                     case 'CONNECT_TO_PEER':
                         // Host told us to connect to a new peer
                         if (!this.connections.has(msg.peerId)) {
@@ -6911,6 +6921,10 @@
                     this.game.audio.play('hurt');
                     document.getElementById('damage-overlay').classList.add('show');
                     setTimeout(() => document.getElementById('damage-overlay').classList.remove('show'), 200);
+                    // Broadcast death message if killed
+                    if (this.game.player.health <= 0) {
+                        this.broadcast({ type: 'CHAT', from: 'Server', text: `${this.myName} was killed!` });
+                    }
                 }
             }
 
@@ -6999,6 +7013,59 @@
             broadcastNPCDespawn(npcId) {
                 if (!this.connected || !this.isHost) return;
                 this.broadcast({ type: 'NPC_DESPAWN', npcId });
+            }
+
+            // Client -> host: request NPC damage
+            sendNPCDamage(npcId, amount) {
+                if (!this.connected) return;
+                if (this.isHost) {
+                    this.handleNPCDamage({ npcId, amount });
+                } else {
+                    const hostConn = this.connections.get(this.hostId);
+                    if (hostConn) this.send(hostConn, { type: 'DAMAGE_NPC', npcId, amount });
+                }
+            }
+
+            // Host -> all: broadcast NPC damage visual (red flash on clients)
+            broadcastNPCDamage(npcId, amount) {
+                if (!this.connected || !this.isHost) return;
+                this.broadcast({ type: 'DAMAGE_NPC', npcId, amount, fromHost: true });
+            }
+
+            handleNPCDamage(msg) {
+                if (this.isHost) {
+                    // Host resolves damage on local NPC
+                    const mgr = this.game.npcManager;
+                    if (!mgr) return;
+                    const npc = mgr.npcs.find(n => n.remote.id === msg.npcId);
+                    if (npc && !npc.dead) {
+                        npc.takeDamage(msg.amount, null);
+                        // Broadcast the damage to all clients for visual feedback
+                        this.broadcast({ type: 'DAMAGE_NPC', npcId: msg.npcId, amount: msg.amount, fromHost: true });
+                    }
+                } else if (msg.fromHost) {
+                    // Client: apply visual damage to remote NPC
+                    const mgr = this.game.npcManager;
+                    if (!mgr || !mgr.remoteNPCs) return;
+                    const rp = mgr.remoteNPCs.get(msg.npcId);
+                    if (rp) {
+                        // Red flash
+                        rp.mesh.traverse(c => {
+                            if (c.material && !c.material._origColor) {
+                                c.material._origColor = c.material.color.getHex();
+                                c.material.color.setHex(0xff0000);
+                            }
+                        });
+                        setTimeout(() => {
+                            rp.mesh.traverse(c => {
+                                if (c.material && c.material._origColor !== undefined) {
+                                    c.material.color.setHex(c.material._origColor);
+                                    delete c.material._origColor;
+                                }
+                            });
+                        }, 300);
+                    }
+                }
             }
 
             sendChat(text) {
@@ -7182,13 +7249,13 @@
                         this.broadcast({ type: 'ENTITY_STATE_BATCH', entities });
                     }
 
-                    // Also broadcast NPC states at 10Hz
+                    // Also broadcast NPC states at 10Hz (skip dead NPCs)
                     const mgr = this.game.npcManager;
                     if (mgr && mgr.npcs.length > 0) {
-                        const npcs = mgr.npcs.map(npc => ({
+                        const npcs = mgr.npcs.filter(n => !n.dead).map(npc => ({
                             id: npc.remote.id, name: npc.remote.name,
                             x: npc.position.x, y: npc.position.y, z: npc.position.z,
-                            yaw: npc.yaw
+                            yaw: npc.yaw, health: npc.health
                         }));
                         this.broadcast({ type: 'NPC_STATE_BATCH', npcs });
                     }
@@ -7276,6 +7343,38 @@
                 this.idleTimer = 0;
                 this.jumpCooldown = 0;
                 this.stateTimer = 5 + Math.random() * 10;
+                // Combat
+                this.health = 20;
+                this.maxHealth = 20;
+                this.dead = false;
+                this.deathTimer = 0;
+                this.hurtTimer = 0;
+                this.respawnTimer = 0;
+            }
+
+            takeDamage(amount, knockbackDir = null) {
+                if (this.dead) return;
+                this.health -= amount;
+                this.hurtTimer = 0.3;
+                // Red flash
+                this.remote.mesh.traverse(c => {
+                    if (c.material && !c.material._origColor) {
+                        c.material._origColor = c.material.color.getHex();
+                        c.material.color.setHex(0xff0000);
+                    }
+                });
+                // Knockback
+                if (knockbackDir) {
+                    this.velocity.add(knockbackDir.clone().multiplyScalar(6));
+                    this.velocity.y = 4;
+                }
+                if (this.health <= 0) this.die();
+            }
+
+            die() {
+                this.dead = true;
+                this.deathTimer = 1.5;
+                this.velocity.set(0, 3, 0);
             }
 
             spawn(playerPos) {
@@ -7292,6 +7391,36 @@
             }
 
             update(dt, playerPos) {
+                // Handle hurt flash recovery
+                if (this.hurtTimer > 0) {
+                    this.hurtTimer -= dt;
+                    if (this.hurtTimer <= 0) {
+                        this.remote.mesh.traverse(c => {
+                            if (c.material && c.material._origColor !== undefined) {
+                                c.material.color.setHex(c.material._origColor);
+                                delete c.material._origColor;
+                            }
+                        });
+                    }
+                }
+
+                // Handle death
+                if (this.dead) {
+                    this.deathTimer -= dt;
+                    this.remote.mesh.rotation.z += dt * 3;
+                    this.remote.mesh.position.y -= dt * 2;
+                    if (this.deathTimer <= 0) {
+                        // Respawn
+                        this.dead = false;
+                        this.health = this.maxHealth;
+                        this.remote.mesh.rotation.z = 0;
+                        this.remote.mesh.visible = true;
+                        this.spawn(playerPos);
+                        return 'respawned';
+                    }
+                    return null;
+                }
+
                 this.stateTimer -= dt;
                 this.jumpCooldown -= dt;
 
@@ -8237,23 +8366,28 @@
                     case 'LASER_GUN':
                         this.projectileSystem.shootLaser(origin, dir, weapon.range);
                         this.entityManager.damageEntityAtRay(origin, dir, weapon.range, weapon.damage);
+                        this.damagePlayersAtRay(origin, dir, weapon.range, weapon.damage);
                         break;
                     case 'RAILGUN':
                         this.projectileSystem.shootRailgun(origin, dir);
                         this.entityManager.damageEntityAtRay(origin, dir, 150, 50);
+                        this.damagePlayersAtRay(origin, dir, 150, 50);
                         break;
                     case 'MINIGUN':
                         this.projectileSystem.shootMinigun(origin, dir, weapon.spread);
                         this.entityManager.damageEntityAtRay(origin, dir, 80, weapon.damage);
+                        this.damagePlayersAtRay(origin, dir, 80, weapon.damage);
                         break;
                     case 'FREEZE_RAY': this.projectileSystem.shootFreezeRay(origin, dir); break;
                     case 'SWORD':
                         this.projectileSystem.shootSword(origin, dir);
                         this.entityManager.damageEntityAtRay(origin, dir, 4, 7);
+                        this.damagePlayersAtRay(origin, dir, 4, 7);
                         break;
                     case 'CHAINSAW':
                         this.projectileSystem.shootChainsaw(origin, dir);
                         this.entityManager.damageEntityAtRay(origin, dir, 3, 5);
+                        this.damagePlayersAtRay(origin, dir, 3, 5);
                         break;
                     case 'BOW': this.projectileSystem.shootBow(origin, dir, weapon.projectileSpeed); break;
                     case 'GRENADE': this.projectileSystem.shootGrenade(origin, dir, weapon.projectileSpeed); break;
@@ -8267,26 +8401,30 @@
                             ).normalize();
                             this.projectileSystem.shootMinigun(origin.clone(), spread, 0);
                             this.entityManager.damageEntityAtRay(origin, spread, 40, weapon.damage);
+                            this.damagePlayersAtRay(origin, spread, 40, weapon.damage);
                         }
                         break;
                     case 'PLASMA_CANNON': this.projectileSystem.shootPlasma(origin, dir, weapon.projectileSpeed); break;
                     case 'FLAMETHROWER':
                         this.projectileSystem.shootFlame(origin, dir);
                         this.entityManager.damageEntitiesInRadius(origin.clone().add(dir.clone().multiplyScalar(5)), 3, weapon.damage);
+                        this.damagePlayersInRadius(origin.clone().add(dir.clone().multiplyScalar(5)), 3, weapon.damage);
                         break;
                     case 'LIGHTNING_STAFF':
                         this.projectileSystem.shootLightning(origin, dir, weapon.range);
                         this.entityManager.damageEntityAtRay(origin, dir, weapon.range, weapon.damage);
-                        // Chain to nearby enemies
+                        this.damagePlayersAtRay(origin, dir, weapon.range, weapon.damage);
+                        // Chain to nearby enemies and players
                         const hitPos = origin.clone().add(dir.clone().multiplyScalar(weapon.range / 2));
                         this.entityManager.damageEntitiesInRadius(hitPos, 8, weapon.damage / 2);
+                        this.damagePlayersInRadius(hitPos, 8, weapon.damage / 2);
                         break;
                     case 'CLUSTER_BOMB': this.projectileSystem.shootCluster(origin, dir, weapon.projectileSpeed, weapon.cluster); break;
                     case 'BFG': this.projectileSystem.shootBFG(origin, dir, weapon.projectileSpeed); break;
                     case 'NUKE_LAUNCHER': this.projectileSystem.shootNuke(origin, dir, weapon.projectileSpeed); break;
                     case 'GRAVITY_GUN':
                         this.projectileSystem.shootGravityWave(origin, dir);
-                        // Push all entities away
+                        // Push all entities and players away
                         for (const entity of this.entityManager.entities) {
                             const toEntity = entity.position.clone().sub(origin);
                             if (toEntity.length() < 20 && toEntity.dot(dir) > 0) {
@@ -8294,6 +8432,7 @@
                                 entity.velocity.y += 5;
                             }
                         }
+                        this.damagePlayersAtRay(origin, dir, 20, 3);
                         break;
                     case 'BLACK_HOLE': this.projectileSystem.shootBlackHole(origin, dir, weapon.projectileSpeed); break;
                 }
@@ -8312,6 +8451,103 @@
                     flash.classList.add('flash');
                     setTimeout(() => flash.classList.remove('flash'), 30);
                 }
+            }
+
+            // PvP: ray test against players and NPCs (0.4x damage - players are tougher)
+            damagePlayersAtRay(origin, direction, range, damage) {
+                const pvpDamage = damage * 0.4;
+                let closestHit = null;
+                let closestDist = range;
+
+                const testHit = (center, hitRadius) => {
+                    const toTarget = center.clone().sub(origin);
+                    const proj = toTarget.dot(direction);
+                    if (proj < 0 || proj > range) return null;
+                    const closest = origin.clone().add(direction.clone().multiplyScalar(proj));
+                    return center.distanceTo(closest) < hitRadius && proj < closestDist ? proj : null;
+                };
+
+                // Check remote players
+                if (this.networkManager) {
+                    for (const [peerId, rp] of this.networkManager.remotePlayers) {
+                        const center = rp.position.clone(); center.y += 0.9;
+                        const d = testHit(center, 0.8);
+                        if (d !== null) { closestDist = d; closestHit = { type: 'player', id: peerId }; }
+                    }
+                }
+
+                // Check NPCs (host: local npcs, client: remoteNPCs)
+                if (this.npcManager) {
+                    if (this.npcManager.npcs) {
+                        for (const npc of this.npcManager.npcs) {
+                            if (npc.dead) continue;
+                            const center = npc.position.clone(); center.y += 0.9;
+                            const d = testHit(center, 0.8);
+                            if (d !== null) { closestDist = d; closestHit = { type: 'npc', npc }; }
+                        }
+                    }
+                    if (this.npcManager.remoteNPCs) {
+                        for (const [npcId, rp] of this.npcManager.remoteNPCs) {
+                            const center = rp.position.clone(); center.y += 0.9;
+                            const d = testHit(center, 0.8);
+                            if (d !== null) { closestDist = d; closestHit = { type: 'remoteNpc', npcId }; }
+                        }
+                    }
+                }
+
+                if (closestHit) {
+                    const kb = direction.clone();
+                    if (closestHit.type === 'player') {
+                        this.sendPvPDamage(closestHit.id, pvpDamage);
+                    } else if (closestHit.type === 'npc') {
+                        closestHit.npc.takeDamage(pvpDamage, kb);
+                        if (this.networkManager) this.networkManager.broadcastNPCDamage(closestHit.npc.remote.id, pvpDamage);
+                    } else if (closestHit.type === 'remoteNpc') {
+                        if (this.networkManager) this.networkManager.sendNPCDamage(closestHit.npcId, pvpDamage);
+                    }
+                    this.audio.play('hit');
+                    return true;
+                }
+                return false;
+            }
+
+            // PvP: radius damage against players and NPCs (explosions)
+            damagePlayersInRadius(position, radius, damage) {
+                const pvpDamage = damage * 0.4;
+                if (this.networkManager) {
+                    for (const [peerId, rp] of this.networkManager.remotePlayers) {
+                        const dist = rp.position.distanceTo(position);
+                        if (dist < radius) this.sendPvPDamage(peerId, pvpDamage * (1 - dist / radius));
+                    }
+                }
+                if (this.npcManager) {
+                    if (this.npcManager.npcs) {
+                        for (const npc of this.npcManager.npcs) {
+                            if (npc.dead) continue;
+                            const dist = npc.position.distanceTo(position);
+                            if (dist < radius) {
+                                const dmg = pvpDamage * (1 - dist / radius);
+                                const kb = npc.position.clone().sub(position).normalize();
+                                npc.takeDamage(dmg, kb);
+                                if (this.networkManager) this.networkManager.broadcastNPCDamage(npc.remote.id, dmg);
+                            }
+                        }
+                    }
+                    if (this.npcManager.remoteNPCs) {
+                        for (const [npcId, rp] of this.npcManager.remoteNPCs) {
+                            const dist = rp.position.distanceTo(position);
+                            if (dist < radius) {
+                                if (this.networkManager) this.networkManager.sendNPCDamage(npcId, pvpDamage * (1 - dist / radius));
+                            }
+                        }
+                    }
+                }
+            }
+
+            sendPvPDamage(targetPeerId, amount) {
+                if (!this.networkManager || !this.networkManager.connected) return;
+                const conn = this.networkManager.connections.get(targetPeerId);
+                if (conn) this.networkManager.send(conn, { type: 'PLAYER_DAMAGE', targetPlayerId: targetPeerId, amount });
             }
 
             findSpawnPoint() {
