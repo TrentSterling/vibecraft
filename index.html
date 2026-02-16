@@ -6854,7 +6854,7 @@
                 for (const es of msg.entities) {
                     let entity = this.game.entityManager.entities.find(e => e.networkId === es.id);
                     // Auto-create missing entities from batch (handles missed spawns)
-                    if (!entity && es.type && !es.dead) {
+                    if (!entity && es.type && !es.dead && MOB_TYPES[es.type]) {
                         try {
                             const pos = new THREE.Vector3(es.x, es.y, es.z);
                             entity = new Entity(es.type, pos, this.game.scene, this.game.world);
@@ -7009,13 +7009,16 @@
 
             spawnNetworkEntity(e) {
                 const pos = new THREE.Vector3(e.x, e.y, e.z);
+                // entityType is used in ENTITY_SPAWN messages, type in JOIN_ACCEPT entity data
+                const mobType = e.entityType || e.type;
+                if (!mobType || !MOB_TYPES[mobType]) return;
                 try {
-                    const entity = new Entity(e.type || e.entityType, pos, this.game.scene, this.game.world);
+                    const entity = new Entity(mobType, pos, this.game.scene, this.game.world);
                     entity.networkId = e.networkId || e.entityId;
                     entity.health = e.health || entity.maxHealth;
                     this.game.entityManager.entities.push(entity);
                 } catch(err) {
-                    console.warn('Failed to spawn network entity:', err);
+                    console.warn('Failed to spawn network entity:', mobType, err);
                 }
             }
 
