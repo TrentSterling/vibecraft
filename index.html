@@ -222,7 +222,7 @@
         camera.position.set(CHUNK_SIZE/2 * BLOCK_SIZE, 150 * BLOCK_SIZE, CHUNK_SIZE/2 * BLOCK_SIZE);
         camera.rotation.x = -Math.PI / 2;
 
-        const renderer=new THREE.WebGLRenderer({antialias:false,}); renderer.setPixelRatio(window.devicePixelRatio); renderer.setSize(window.innerWidth,window.innerHeight); renderer.shadowMap.enabled=false; document.body.appendChild(renderer.domElement);
+        const renderer=new THREE.WebGLRenderer({antialias:false,}); renderer.setPixelRatio(window.devicePixelRatio); renderer.setSize(window.innerWidth,window.innerHeight); renderer.shadowMap.enabled=false; renderer.domElement.setAttribute('data-tront-discovery-game-surface',''); document.body.appendChild(renderer.domElement);
         const hemisphereLight = new THREE.HemisphereLight(0xffeeff,0x777788, BASE_HEMI_LIGHT_INTENSITY);
         scene.add(hemisphereLight);
         const directionalLight=new THREE.DirectionalLight(0xffffff, BASE_DIR_LIGHT_INTENSITY);
@@ -445,7 +445,6 @@
         </div>
         <h3 class="tront-discovery__games-title">Games</h3>
         <div class="tront-discovery__grid" data-tront-discovery-cards></div>
-        <p class="tront-discovery__status" data-tront-discovery-status role="status" aria-live="polite"></p>
         <noscript><p class="tront-discovery__hub"><a href="/craftmine/">CraftMine</a> &middot; <a href="/smear/">SMEAR</a> &middot; <a href="/games/">More games and tools</a></p></noscript>
     </section>
 </details>
